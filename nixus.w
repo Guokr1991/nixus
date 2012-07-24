@@ -1153,6 +1153,6 @@ assigned in the parentheses.
 
 @
 \bibliographystyle{plain}
-\bibliography{refs}
+\bibliography{nixus}
 
 \end{document}
