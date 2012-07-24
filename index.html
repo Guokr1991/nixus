@@ -1,0 +1,210 @@
+<html>
+  <head>
+    <title>nixus</title>
+    <style type="text/css">
+      h1 {
+      border-bottom: dotted 1px black;
+      rule: dashed;
+      padding: 1%;
+      }
+      h2 {
+      padding: 1%;
+      margin-left: 1%;
+      }
+      h3 {
+      padding: 1%;
+      margin-left: 2%;
+      }
+      p,ol {
+      margin-left: 3%;
+      }
+      body {
+      font-family: Verdana, Arial, Helvetica, sans-serif;
+      text-align: justify;
+      margin-left: 15%;
+      margin-right: 50%;
+      }
+    </style>
+  </head>
+
+  <body>
+
+<h1><tt>nixus</tt></h1>
+
+<p> <tt>nixus</tt> is a program to obtain strain map from RF data.
+
+<h2> Download</h2>
+
+<p>
+The <a href="http://www-cs-faculty.stanford.edu/~knuth/cweb.html">CWEB</a> documentation
+is available to <a href="nixus.pdf" >download</a>. The program is in a very raw state and any suggestions are welcome.
+</p>
+
+<p>
+The files used in the project can be downloaded using <a href="http://git-scm.com/" >git</a> version control system:<br/>
+</p>
+
+<p>
+<tt>$ # Unix command line</tt><br/>
+<tt>$ git clone git://dcm.ffclrp.usp.br/nixus/</tt>
+</p>
+
+<h2> Instalation</h2>
+
+<p>
+There is a <tt>Makefile</tt> script in the root directory of the project. The code
+is generated running <tt>make nixus.c</tt> and the documentation (LaTeX) with
+<tt>make nixus.tex</tt> or the command <tt>make docdoc</tt> to generate the pdf file.
+</p>
+
+<h2>References</h2>
+
+<h3>Application</h3>
+
+<ol>
+  <li>
+  <a href="http://svr-www.eng.cam.ac.uk/~rwp/stradwin/" >Stradwin</a> -
+  an experimental, cross-platform tool primarily for freehand 3D
+  ultrasound acquisition, visualisation and elastography.
+  </li>
+  
+</ol>
+
+
+<h3>RF data</h3>
+<ol>
+<li>
+<a href="http://research.ultrasonix.com/">Ultrasonix Research Users Forum</a>. 
+A Knowledgebase for the Sonix RP Ultrasound Research System.
+</li>
+
+<li>
+<a href="http://www.ultrasonix.com/wikisonix/">Ultrasonix Research Wiki</a>.
+</li>
+
+<li>
+  <a href="http://ar.in.tum.de/Students/RFtoB">RF2B : RF to B-mode Ultrasound</a>.
+</li>
+
+<li>
+  <a href="http://mi.eng.cam.ac.uk/research/projects/elasprj/tracking/tracking.html">A
+  special topic in displacement tracking</a>. Ultrasonic elasticity
+  imaging. University of Cambridge, Engineering Department.
+</li>
+
+<li>
+  <a href="http://dukemil.bme.duke.edu/Ultrasound/k-space/node5.html">A beginner's guide to speckle</a>.
+</li>
+
+<li>
+  <a href="http://www.libpng.org/pub/png/libpng.html">libpng -
+    official PNG reference
+    library</a>. <a href="http://zarb.org/~gc/html/libpng.html">A
+    simple libpng example program</a>.
+</li>
+
+</ol>
+
+<h3>Cross correlation</h3>
+<ol>
+  <li>
+B. P. Welford. <a href="http://www.jstor.org/stable/1266577" >Note on a Method for Calculating Corrected Sums of Squares and Products.</a>  Technometrics, v. 4, no. 3, 1962.
+  </li>
+  <li>Donald E. Knuth. The Art of Computer Programming: Seminumerical Algorithms, page 232.</li>
+</ol>
+
+<h3>Ultrasound</h3>
+
+<ol>
+  <li>Jean Meunier and Michel
+    Bertrand. <a href="http://dx.doi.org/10.1109/42.387711">Ultrasonic
+      texture motion analysis: theory and simulation</a>. IEEE
+    Transactions on Medical Imaging, vol. 14. no. 2, June 1995.
+  </li>
+
+  <li> <a
+  href="http://folk.ntnu.no/stoylen/strainrate/Ultrasound/">Basic
+  ultrasound, echocardiography and Doppler for clinicians</a>. Asbjorn
+  Stoylen.  </li>
+  
+</ol>
+
+<h3>Elastography</h3>
+
+<ol>
+  <li>
+    Mehmet Bilgen and Michael F. Insana. 
+    <a href="http://dx.doi.org/10.1121/1.414865">Deformation models
+      and correlation analysis in
+      elastography</a>. J. Acoust. Soc. Am. Volume 99, Issue 5,
+    pp. 3212-3224 (1996); (13 pages).
+  </li>
+</ol>
+
+<h3>Hilbert Transform</h3>
+
+<ol>
+  
+  <li>
+    <a href="http://w3.msi.vxu.se/exarb/mj_ex.pdf">The Hilbert transform.</a>
+      Mathias Johansson.
+  </li>
+
+  <li>
+    <a href="http://rfidlab.iecs.fcu.edu.tw/~chh/PMLAB/Hilbert/en_hilbert.html">Hilbert Space-Filling Curves.</a>
+  </li>
+  
+  <li>
+    <a href="http://www.tiac.net/~sw/2008/10/Hilbert/moore/index.html">Fast Hilbert Curve Generation, Sorting, and Range Queries.</a>
+  </li>
+  
+  <li>
+    [<tt><a href="http://www.physionet.org/physiotools/apdet/apdet-1.0/ht.c">ht.c</a></tt>]. This
+    program performs Hilbert transform and calculate instantaneous magnitude and frequency.
+  </li>
+  
+  
+  <li>
+    <a href="http://www.codeforge.com/article/106859">The c++ code for the hilbert transform.</a>
+  </li>
+
+  <li>
+    The Hilbert Transform as an important component in communication
+    systems. <a href="http://www.codeforge.com/article/148720">VHDL code.</a>
+  </li>
+
+  <li>
+    <a href="http://oai.dtic.mil/oai/oai?verb=getRecord&metadataPrefix=html&identifier=ADA068084">Hilbert
+    Transform by Numerical Integration</a>. Rome Air Development Center Griffiss AFB NY.
+  </li>
+
+  <li>
+    S. Olver (2011), 
+    <a href="http://www.ams.org/journals/mcom/2011-80-275/S0025-5718-2011-02418-X/home.html">Computing
+      the Hilbert transform and its inverse</a>, Maths Comp., 80: 1745-1767.
+  </li>
+
+  <li>
+    <a href="http://www.jjj.de/fft/fftpage.html">FFT code and related material.</a>
+  </li>
+  
+  
+  <li>
+    M Meissner. <a href="http://jvc.sagepub.com/content/early/2011/10/18/1077546311420896">The
+    discrete Hilbert transform and its application to analysis of
+    reverberant decay of modal vibrations in enclosures</a>. Journal
+    of Vibration and Control, 2011.
+  </li>
+
+</ol>
+
+<hr>
+
+<!-- hhmts start -->Last modified: Thu Jul  5 18:42:26 BRT 2012 <!-- hhmts end -->
+</body>
+
+</html>
+
+
+
+

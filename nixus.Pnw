@@ -1,0 +1,118 @@
+
+<<>>=
+import io
+import struct
+class RF():
+    def __init__(self,filename):
+        self.uFileProperty = ['utype', 'nframes', 'width', 'height', 'sampleSize',
+                              'ulx', 'uly', 'urx', 'ury',
+                              'brx', 'bry', 'blx', 'bly',
+                              'probe_id', 'transmitFreq', 'samplingFreq',
+                              'dataRate', 'lineDensity', 'extra'
+                              ]
+        
+        self.uFileHeader = {}
+        
+        try:
+            f = io.open(filename, 'rb')
+            buf = io.BufferedReader(f)
+            for k in range(0, len(self.uFileProperty)):
+                self.uFileHeader[self.uFileProperty[k]] = struct.unpack('i', buf.read(4))[0]
+            
+                
+        finally:
+            f.close()
+    
+@ 
+Calculate mean in 2 passes.
+<<>>=
+def mean2(x):
+    mean = 0
+    for i in range(0,len(x)):
+        mean = mean + x[i]
+    return float(mean)/len(x)
+    
+@ 
+Calculate the mean in one pass.
+<<>>=
+def mean1(x):
+    mean = x[0]
+    for i in range(1,len(x)):
+        mean = mean + (float(x[i] - mean))/(i + 1)
+    return mean        
+@ 
+
+<<>>=
+import math
+def NCC(x,y):
+    assert(len(x) == len(y))
+    mx = mean2(x)
+    my = mean2(y)
+    for i in range(0,len(x)):
+        cc = (x[i] - mx) * (y[i] - my)
+        nx = math.pow(x[i] - mx, 2)
+        ny = math.pow(y[i] - my, 2)
+        
+    return float(cc) / math.sqrt(nx*ny)
+@ 
+
+<<>>=
+def NCCi(x,y):
+    d = {0:x, 1:y}
+    m = [0, 0]
+    lastmean = [0,0]
+    s = [x[0], y[0]]
+    ncc = float(0)
+    for i in range(1,len(x)):
+        for k in [0,1]:
+            m[k] = lastmean[k] + (d[k][i] - m[k])/(i + 1)
+            s[k] = s[k] + (d[k][i] - lastmean[k])*(d[k][i] - m[k])
+            lastmean[k] = m[k]
+            
+        ncc = ncc + s[0]*s[1] / (math.sqrt(math.pow(s[0], 2) * math.pow(s[1], 2)))
+        
+    return ncc/(len(x)-1)
+
+
+@ 
+
+
+<<>>=
+import time
+import sys
+
+def testmean():
+    x = []
+    y = []
+    for i in range(1,10000000):
+        x.append(i)
+        y.append(2*i)
+    
+    m = (mean1(x), mean2(x))
+    
+    if (m[0] != m[1]):
+        print 'ERROR: interactive mean is not OK'
+        print '\t' + str(m[0]) + ' != ' + str(m[1]) 
+        sys.exit()
+
+
+def main():
+    x = []
+    y = []
+    for i in range(1,10000000):
+        x.append(i)
+        y.append(2*i)
+    
+    before = time.clock()
+    print 'NCC(x,y) = ' + str(NCC(x,y))
+    print 'time(NCC)=' +  str(time.clock() - before)
+    
+#    before = time.clock()
+#    print 'NCCi(x,y) = ' + str(NCCi(x,y))
+#    print 'time(NCCi) = ' +  str(time.clock() - before)
+    
+
+if __name__ == "__main__":
+    main()
+
+@ 
