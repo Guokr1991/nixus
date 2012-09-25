@@ -1,0 +1,9 @@
+@s int8_t int
+@s uint8_t int
+@s int16_t int
+@s uint16_t int
+@s int32_t int
+@s uint32_t int
+@s int64_t int
+@s uint64_t int
+@s pixel_t int
