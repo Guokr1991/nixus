@@ -1,3 +1,20 @@
+# emacs backup
+*~
+*.swp
+
+# cweb generated files
+*.tox
+nixus.c
+nixus.pdf
+nixus.tex
+
+# executables
+nixus
+nixus.dbg
+
+# project log
+nixus.org
+
 # Compiled Object files
 *.slo
 *.lo
@@ -10,3 +27,11 @@
 *.lai
 *.la
 *.a
+
+# reference implementation study
+libpng*
+zlib*
+
+# cmake
+CMakeCache.txt
+CMakeFiles
