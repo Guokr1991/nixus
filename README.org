@@ -1,0 +1,14 @@
+* Nixus
+
+[[https://github.com/ajholanda/nixus/wiki][Information about the project.]]
+
+** Dependencies
+- cweb
+- gcc
+- make
+
+** How to compile?
+=make nixus=
+
+** How to compile for debug purposes?
+=make nixus.dbg=
