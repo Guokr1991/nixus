@@ -332,13 +332,13 @@ fread(rf->data, rf_nbytes(rf), 1, fp);
 @* Memory allocation. Due the frequent use of dynamic memory
 allocation, we implemented a memory management scheme to allow a
 centralized source of access to the chunks of memory. This scheme is
-known as |arena|, by David R. Hanson, and is described at the 1997
-edition of the book ``C Interfaces and Implementations'', page 89.
+known as |arena|, it was described by David R. Hanson in the 1997
+edition of the book ``C Interfaces and Implementations'' at page 89.
 
 This scheme avoid the need to allocate and free in the same excerpt of
 code, and help to avoid the dangling pointer problem, when a pointer
 is deallocated before its lifetime end. The memory is freed at the
-same time and in batch.
+same time in batch mode.
 
 @<Type def...@>=
   typedef struct arena {
