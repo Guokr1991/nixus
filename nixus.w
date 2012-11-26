@@ -475,8 +475,6 @@ Int64 count, nbytes;
       }
 
 
-@* Processor optimizations.
-
 @* Normalized Cross-Correlation ($r_{xy}$). NCC is frequently used as a
 method to determine correlation between two data series. This method
 is used to calculate the pairwise correlation between RF
@@ -493,15 +491,33 @@ r_{xy}= {
   }\over
   {\sqrt{\sum\limits_{i=1}^{n}(x_i-\average{x})^2
 	 \times\sum\limits_{i=1}^{n}(y_i-\average{y})^2}}
-}
+}\eqno(1)
 $$
 
 \settabs 16 \columns
-\+ where:\cr
+\+ where\cr
 \+&$r_{xy}$~-~normalized cross-correlation;\cr
 \+&$i$~--~index; \cr
 \+&$x$~--~|REFERENCE| signal in pixel intensity;\cr
 \+&$y$~--~|TARGET| signal to be compared with the reference in pixel intensity.\cr
+
+\bigskip
+The problem with Equation (1) is that requires two passes to calculate
+the correlation. Equation (2) is less intuitive but it requires only 
+one pass to acomplish the task. The equation was obtained from 
+ the book ``Introduction to 64 Bit Intel Assembly Language Programming for
+ Linux: Second Edition'' at chapter 19 (Kindle edition), by Ray Seyfarth.
+
+$$
+\def\den#1{{\sqrt{n\sum #1_i^2-(\sum #1_i)^2}}}
+r_{xy} = {
+       {n\sum x_iy_i-\sum x_i\sum y_i}
+       \over
+       {\den{x}\den{y}}
+}\eqno(2)
+$$
+
+\noindent where the variables have the same meaning of Equation (1).
 
 \bigskip
 |REFERENCE| image index is assigned to $0$ and |TARGET| to 1. The
@@ -522,122 +538,84 @@ typedef struct subframe {
    struct coordinate bottom_right; /* bottom right coordinate of sub-image */
  } SubFrame;
 
- 
 
-@ @<Proto...@>=
-     extern Float rf_xcorr2d(RF*rf, SubFrame *reference, 
-			 SubFrame *target);
+@ Using the Equation~(2), five sums are needed to pass the data:
+$x_i$, $y_i$, $x_i^2$, $y_i^2$, $x_iy_i$.
+
+@<Proto...@>=
+  Float rf_xcorr2d(RF*rf, SubFrame *reference, SubFrame *target);
 		       
 @ @<Functions@>=
 Float rf_xcorr2d(rf, ref, tar)
  RF *rf;	 /* RF data to work on */
  SubFrame *ref; /* reference sub-frame to track */
  SubFrame *tar; /* target sub-frame to calculate the correlation with reference */
-{
-  register Uint64 dx, dy; /* how many pixels to transverse in x and y */
+{@+Uint64 dx, dy, n; /* how many pixels to transverse in x and y */
   register Uint64 x, y; /* x, y sub-frame coordinates */
-  Float mean[2];
-  register Float xcorr = 0.0; /* cross correlation per se */
-
-
+  register Uint16 *px, *py;
+  register Uint64 sum_x, sum_y, sum_xx, sum_yy, sum_xy;
+  
   assert(rf!=NULL);
   assert(ref!=NULL);
   assert(tar!=NULL);
 
-  @<Local variables for |rf_xcorr2d|@>@;
-  @<Initialize |dx|, |dy| and assert the equivalence in geometry between sub-frames@>@;
-  @<Initialize mean...@>@;
-  for (y=0; y<dy; y++) {
-    for (x=1; x<dx; x++) {
-      @<Update mean and standard deviation@>@;
-      @<Update numerator of normalized cross correlation formula@>@;
+  @<Initialize |dx|, |dy|...@>@;
+
+  for (y = 0; y < dy ; y ++ ) {
+    for (x = 1; x < dx ; x++) {
+      @<Update pixel values |px| and |py|@>@;
+      sum_x += *px;
+      sum_y += *py;
+      sum_xx += *px * *px;
+      sum_yy += *py * *py;
+      sum_xy += *px * *py;
     }
   }
-    @<Calculate normalized cross correlation@>@;
+  n = dx; /* total number of pixels transversed */
+  return ((Float)(n*sum_xy-sum_x*sum_y))/
+    sqrt((n*sum_xx-sum_x*sum_x)* 
+	 (n*sum_yy-sum_y*sum_y));
+}  
 
-  return xcorr;
-  }
+@ @<Initialize |dx|, |dy| and assert the equivalence in geometry between sub-frames@>=
+      dx = ref->bottom_right.x - ref->top_left.x;
+dy = ref->bottom_right.y - ref->top_left.y;
+assert ((ref->bottom_right.x - ref->top_left.x) == (tar->bottom_right.x - tar->top_left.x));
+assert ((ref->bottom_right.y - ref->top_left.y) == (tar->bottom_right.y - tar->top_left.y));
 
-@ @<Initialize |dx|, |dy|...@>=
-      dx = ref->bottom_right.x-ref->top_left.x;
-dy = ref->bottom_right.y-ref->top_left.y;
-assert((ref->bottom_right.x-ref->top_left.x) ==
-       (tar->bottom_right.x-tar->top_left.x));
-assert((ref->bottom_right.y-ref->top_left.y) ==
-       (tar->bottom_right.y-tar->top_left.y));
-
-@ The mean of |REFERENCE| and |TARGET| images is initialized to the
-first pixel in that images. This follows the Formula~1 to
-calculate the mean as a recurrence series.
-
-@<Initialize mean values@>=
-mean[REFERENCE] = (Float)rf_pixel(rf, ref->frame_id, 0, 0);
-mean[TARGET] = (Float)rf_pixel(rf, tar->frame_id, 0, 0);
+@ @<Update pixel values |px| and |py|@>=
+  px = rf_pixel_ptr(rf , ref->frame_id , ref->top_left.x + x, ref->top_left.y + y);
+py = rf_pixel_ptr(rf , tar->frame_id , tar->top_left.x + x, tar->top_left.y + y);
 
 
-@*1 Mean and standard deviation. We might use the less possible naive
-algorithm to calculate the mean and standard deviation to be used in
- NCC formula, because the number of elements to be compared is very
-high. We choose the following recurrence formulas as suggested in
-welford 1962 and Knuth TAOCP2.
-
-The Formula~1 is used to update the mean during the
-pairwise evaluation of elements:
-
-$$
-M_1 = x_1, M_K = M_{k-1} + (x_k - M_{k-1}) / k
-$$
-
-\noindent for $2\leq k\leq n$. As $1\leq k\leq n$ and $0\leq j<n-1$,
-that is used as index in the loop, then $k = j + 1$.
-
-\bigskip
-
-@<Local variables for |rf_xcorr2d|@>=
-register Uint8 i; /* index for reference [0] and target [1] data  */
-register pixel_t *p; /* pixel pointer */
-SubFrame *sf[2] = {ref, tar};
-Float last_mean[2] = {0.0, 0.0}; /* old value of mean */
-
-@ @<Update mean and standard deviation@>=
-  for (i = 0; i < 2; i++) {
-    p = rf_pixel_ptr(rf, sf[i]->frame_id, 
-		     sf[i]->top_left.x+x,
-		     sf[i]->top_left.y+y);
-    mean[i] = last_mean[i] + (*p - last_mean[i])/(x+y + 1);
-    
-    @<Update standard deviation@>@;
-    @<Update denominator of normalized cross correlation formula@>@;
-    last_mean[i] = mean[i];
-  }
-
-@ The Formula~S is used to calculate the standard deviation 
-  during the NCC calculation.
 
 
-$$
-S_1 = 0,  S_k = S_{k-1} + (x_k - M_{k-1}) \times (x_k - M_k)
-$$
+@* Optimizations. The following prototypes are foreign to {\sc CWEB},
+and for these reasons are generated in separated files ({\tt
+asm/xcorr2d\_sse.asm} and {\tt asm/xcorr2d\_avx.asm}).  The files
+contain instructions to calculate cross correlation using Intel x86-64
+assembly language, more specifically the {\tt yasm} assembler.
 
-  for $2\leq k\leq n$, where $\sigma=\sqrt{S_n/(n-1)}$.
-\bigskip
+The reason to use assembly language is not because we think we can
+beat the compiler in the assembly code generated, but because some
+operations and resources to process images implemented in the
+processor, sometimes is not implemented as optmization in the
+compiler.
 
-@<Local variables for |rf_xcorr2d|@>=
-Float S2[2] = {0.0, 0.0}; /* $S^2 = (p_i - \overline{p})^2$ */
-Float den[2] = {0.0, 0.0}; /* ncc denominator terms */
-register Float num=0; /* ncc numerator */
+The first implementation of cross correlation using Intel x86-64
+  assembly ({\tt asm/xcorr2d\_sse.asm}) takes advantage of Streaming
+  SIMD (single instruction, multiple data) Extensions (SSE) to perform
+  some operations on multiple data. The second one ({\tt
+  asm/xcorr2d\_avx.asm}) uses the Intel Advanced Vector Extensions
+  (AVX).
 
-@ @<Update standard deviation@>=
-  S2[i] +=  (*p - last_mean[i])*(*p - mean[i]);
-
-@ @<Update denominator...@>=
-  den[i] += S2[i];
-
-@ @<Update numerator...@>=
-  num += sqrt(S2[0])*sqrt(S2[1]);
-
-@ @<Calculate normalized cross correlation@>=
-  xcorr =  num/ sqrt(den[0]*den[1]);
+The assembly code in the files was described by Ray Seyfarth in the
+book ``Introduction to 64 Bit Intel Assembly Language Programming for
+Linux: Second Edition'' at chapter 19 (Kindle edition).
+\smallskip
+@<Proto...@>=
+  Float xcorr2d_sse(Float x[], Float y[], Uint64 n);
+  Float xcorr2d_avx(Float x[], Float y[], Uint64 n);
 
 
 @ The following program performs a trivial test
@@ -668,6 +646,8 @@ register Float num=0; /* ncc numerator */
 
       return 0;
     }
+
+
 
 
 @* Sub-frame matching. Sub-frames are divisions of the |REFERENCE| RF
@@ -878,12 +858,10 @@ information is printed.
 @* TODO. The following tasks are pending, and the priority are
 assigned in the parentheses.
 
-
-
-    \item{(0)} Refine the |rf_match| function to search a reasonable target
-    image region, and step with a more accurate reasoning.
-    \item{(2)} Add multi-thread instructions in the target frames matching to take
-    advantage of multi-core architecture of current processors.
-    \item{(4)} Implement the graphical interface with the elastography map. 
+\item{(0)} Refine the |rf_match| function to search a reasonable target
+ image region, and step with a more accurate reasoning.
+\item{(2)} Add multi-thread instructions in the target frames matching to take
+ advantage of multi-core architecture of current processors.
+\item{(4)} Implement the graphical interface with the elastography map. 
 
 
