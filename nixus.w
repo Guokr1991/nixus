@@ -545,50 +545,45 @@ $x_i$, $y_i$, $x_i^2$, $y_i^2$, $x_iy_i$.
 @<Proto...@>=
   Float rf_xcorr2d(RF*rf, SubFrame *reference, SubFrame *target);
 		       
-@ @<Functions@>=
+@ 
+@d XVAL *(rf_pixel_ptr(rf , ref->frame_id , ref->top_left.x + i, ref->top_left.y + j))
+@d YVAL *(rf_pixel_ptr(rf , tar->frame_id , tar->top_left.x + i, tar->top_left.y + j))
+
+@<Functions@>=
 Float rf_xcorr2d(rf, ref, tar)
  RF *rf;	 /* RF data to work on */
  SubFrame *ref; /* reference sub-frame to track */
  SubFrame *tar; /* target sub-frame to calculate the correlation with reference */
-{@+Uint64 dx, dy, n; /* how many pixels to transverse in x and y */
-  register Uint64 x, y; /* x, y sub-frame coordinates */
-  register Uint16 *px, *py;
+{@+Uint64 di, dj, n; /* how many pixels to transverse in x and y */
+  register Uint64 i, j; /* x, y sub-frame coordinates */
   register Uint64 sum_x, sum_y, sum_xx, sum_yy, sum_xy;
   
   assert(rf!=NULL);
   assert(ref!=NULL);
   assert(tar!=NULL);
 
-  @<Initialize |dx|, |dy|...@>@;
+  @<Initialize |di|, |dj|...@>@;
 
-  for (y = 0; y < dy ; y ++ ) {
-    for (x = 1; x < dx ; x++) {
-      @<Update pixel values |px| and |py|@>@;
-      sum_x += *px;
-      sum_y += *py;
-      sum_xx += *px * *px;
-      sum_yy += *py * *py;
-      sum_xy += *px * *py;
+  for (j = 0; j < dj ; j ++ ) {
+    for (i = 1; i < di ; i++) {
+      sum_x += XVAL;
+      sum_y += YVAL;
+      sum_xx += XVAL * XVAL;
+      sum_yy += YVAL * YVAL;
+      sum_xy += XVAL * YVAL;
     }
   }
-  n = dx; /* total number of pixels transversed */
+  n = di; /* total number of pixels transversed */
   return ((Float)(n*sum_xy-sum_x*sum_y))/
     sqrt((n*sum_xx-sum_x*sum_x)* 
 	 (n*sum_yy-sum_y*sum_y));
 }  
 
-@ @<Initialize |dx|, |dy| and assert the equivalence in geometry between sub-frames@>=
-      dx = ref->bottom_right.x - ref->top_left.x;
-dy = ref->bottom_right.y - ref->top_left.y;
+@ @<Initialize |di|, |dj| and assert the equivalence in geometry between sub-frames@>=
+  di = ref->bottom_right.x - ref->top_left.x;
+dj = ref->bottom_right.y - ref->top_left.y;
 assert ((ref->bottom_right.x - ref->top_left.x) == (tar->bottom_right.x - tar->top_left.x));
 assert ((ref->bottom_right.y - ref->top_left.y) == (tar->bottom_right.y - tar->top_left.y));
-
-@ @<Update pixel values |px| and |py|@>=
-  px = rf_pixel_ptr(rf , ref->frame_id , ref->top_left.x + x, ref->top_left.y + y);
-py = rf_pixel_ptr(rf , tar->frame_id , tar->top_left.x + x, tar->top_left.y + y);
-
-
-
 
 @* Optimizations. The following prototypes are foreign to {\sc CWEB},
 and for these reasons are generated in separated files ({\tt
@@ -616,6 +611,60 @@ Linux: Second Edition'' at chapter 19 (Kindle edition).
 @<Proto...@>=
   Float xcorr2d_sse(Float x[], Float y[], Uint64 n);
   Float xcorr2d_avx(Float x[], Float y[], Uint64 n);
+
+@ More portable optimizations using SSE2.
+
+@<Header...@>=
+#include <tmmintrin.h>
+#include <smmintrin.h>
+
+@ @d xVAL(d) *(rf_pixel_ptr(rf , ref->frame_id , ref->top_left.x + i + (d), ref->top_left.y + j))
+@d yVAL(d) *(rf_pixel_ptr(rf , tar->frame_id , tar->top_left.x + i, tar->top_left.y + j + (d)))
+@d _mm_MUL(sum) _mm_mul_epu32(
+			     _mm_set_epi32(_mm_extract_epi32((sum), 0), 1,_mm_extract_epi32((sum), 1), 1)
+			     ,_mm_set_epi32(_mm_extract_epi32((sum), 2), 1, _mm_extract_epi32((sum), 3), 1)
+			     )
+@d _mm_MULXY(sumX,sumY) 
+  _mm_add_epi32(
+		_mm_mul_epu32(
+			      _mm_set_epi32(_mm_extract_epi32((sumX), 0), 1,_mm_extract_epi32((sumX), 1), 1),
+			      _mm_set_epi32(_mm_extract_epi32((sumY), 0), 1, _mm_extract_epi32((sumY), 1), 1)
+			      ),
+		_mm_mul_epu32(
+			      _mm_set_epi32(_mm_extract_epi32((sumX), 2), 1,_mm_extract_epi32((sumX), 3), 1),
+			      _mm_set_epi32(_mm_extract_epi32((sumY), 2), 1, _mm_extract_epi32((sumY), 3), 1)
+			      )
+		)
+  
+
+@<Functions@>=
+Float rf_xcorr2d_sse2(rf, ref, tar)
+RF *rf;	 /* RF data to work on */
+ SubFrame *ref; /* reference sub-frame to track */
+ SubFrame *tar; /* target sub-frame to calculate the correlation with reference */
+{@+Uint64 di, dj, n; /* how many pixels to transverse in x and y */
+  register Uint64 i, j; /* x, y sub-frame coordinates */
+  register __m128i sum_x, sum_y, sum_xx, sum_yy, sum_xy;
+  register __m128i xval, yval;
+  
+
+  @<Initialize |di|, |dj|...@>@;
+
+  for (j = 0; j < dj/4 ; j+=4 ) {
+    yval = _mm_set_epi32(yVAL(0), yVAL(1), yVAL(2), yVAL(3));
+    for (i = 1; i < di/4 ; i+=4) {
+      xval = _mm_set_epi32(xVAL(0), xVAL(1), xVAL(2), xVAL(3));
+      
+      sum_x = _mm_add_epi32(sum_x, xval);
+      sum_y = _mm_add_epi32(sum_y, yval);
+      
+      sum_xx = _mm_add_epi32(sum_xx, _mm_MUL(sum_x));
+      sum_xy = _mm_MULXY(sum_x, sum_y);
+    }
+  }
+  
+  return 0.0;
+}
 
 
 @ The following program performs a trivial test
