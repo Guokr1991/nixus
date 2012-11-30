@@ -29,7 +29,7 @@ int main(argc, argv)
 #if 1==2
   test_match();
 #endif
-  test_xcorr2d();
+  test_xcorr();
 
   return 0;
 }
@@ -151,7 +151,7 @@ void u_print_file_header(U_FileHeader *h){
   printf("|- line density: %d\n",h->ld);
   printf("|- extra information: %d\n",h->extra);
   printf("|- number of bytes per frame: %d\n", 4 + h->w * h->h * h->ss/8);
-  printf("|- number of pixels per frame: %d\n", 4 + h->w * h->h);
+  printf("|- number of pixels per frame: %d\n", 2 + h->w * h->h);
 
   return;
 }
@@ -214,13 +214,18 @@ a clean accession interface.
 @d rf_frame_nvectors(rf) u_frame_width(rf->file_header)
 @d rf_frame_nsamples(rf) u_frame_height(rf->file_header)
 @d rf_nframes(rf) u_nframes(rf->file_header)
-@d rf_frame_npixels(rf) (RF_FRAME_HEADER_NPIX +
-  rf_frame_nvectors(rf)*rf_frame_nsamples(rf)) /* in  pixels\_t */
-@d rf_frame_nbytes(rf) (rf_frame_npixels(rf)*RF_FRAME_HEADER_NPIX) /* in bytes */
+/* number of pixels in the frame */ 
+@d rf_frame_data_npixels(rf)  /* not taking into account frame header */
+  (rf_frame_nvectors((rf))*rf_frame_nsamples((rf)))
+    
+@d rf_frame_npixels(rf) /* number of pixels in the frame $\rightarrow$ header + data */
+     (2 + rf_frame_data_npixels((rf)))
+  
+@d rf_frame_nbytes(rf) (rf_frame_npixels(rf)*2) /* in bytes */
 @d rf_npixels(rf) ((rf_frame_npixels(rf))*rf_nframes(rf))
-@d rf_nbytes(rf) (rf_npixels(rf)*RF_FRAME_HEADER_NPIX) /* in bytes */
+@d rf_nbytes(rf) (rf_npixels(rf)*sizeof(pixel_t)) /* in bytes */
 
-@*1 {RF data}.The lines are recorded as showed in the
+@* {RF data}.The lines are recorded as showed in the
 Figure~1, where each sample is recorded as it arrives, and
 after all, the map must be reshaped where the coordinate $(0,1)$
 becomes $(1,0)$, for example, reconstructing the RF data as it is
@@ -254,9 +259,9 @@ where
 @d rf_pixel_ptr(rf, frame_no, x, y) (rf->data		
 + rf_frame_npixels(rf)*frame_no				
 + RF_FRAME_HEADER_NPIX				
-+ (x)*rf_frame_nsamples((rf))			
++ (x)*rf_frame_nvectors((rf))			
 + (y))
-@d rf_pixel(rf, frame_no, x, y) *rf_pixel_ptr(rf, frame_no, x, y)
+@d rf_pixel(rf, frame_no, x, y) *rf_pixel_ptr((rf), (frame_no), (x), (y))
 
 @<Functions@>=
 RF *rf_new () 
@@ -313,18 +318,20 @@ const char*fn; /* RF file name */
       fread(rf->file_header, sizeof(U_FileHeader), 1, fp);
 if (rf->file_header->type != udtRF)/* verify if the file is RF type 0x10 = 16 */
   die("The file %s seems not to be in RF format.\n", fn);
+#ifndef NDEBUG
 u_print_file_header(rf->file_header);
+#endif
 
 @ A quantity |data_sz| of memory for |rf_data| is allocated in the heap and 
   filled with binary data obtained from RF file. The |rf_data| contains
   all RF frame headers and frames.
 
 @<Allocate memory and fill with RF data@>=
+  debug("Alocating %lu bytes to RF data.\n", rf_nbytes(rf));
   rf->data = (pixel_t *)arena_alloc(rf->arena, rf_nbytes(rf));
 
 if (!rf->data) {
   rf_free(rf);
-  
   die("Could not allocate memory.");
  }
 fread(rf->data, rf_nbytes(rf), 1, fp);
@@ -336,8 +343,8 @@ known as |arena|, it was described by David R. Hanson in the 1997
 edition of the book ``C Interfaces and Implementations'' at page 89.
 
 This scheme avoid the need to allocate and free in the same excerpt of
-code, and help to avoid the dangling pointer problem, when a pointer
-is deallocated before its lifetime end. The memory is freed at the
+code, and it helps to avoid the dangling pointer problem, when a pointer
+is deallocated before its lifetime ends. All memory is freed at the
 same time in batch mode.
 
 @<Type def...@>=
@@ -543,20 +550,20 @@ typedef struct subframe {
 $x_i$, $y_i$, $x_i^2$, $y_i^2$, $x_iy_i$.
 
 @<Proto...@>=
-  Float rf_xcorr2d(RF*rf, SubFrame *reference, SubFrame *target);
+  Float rf_xcorr(RF*rf, SubFrame *reference, SubFrame *target);
 		       
 @ 
-@d XVAL *(rf_pixel_ptr(rf , ref->frame_id , ref->top_left.x + i, ref->top_left.y + j))
-@d YVAL *(rf_pixel_ptr(rf , tar->frame_id , tar->top_left.x + i, tar->top_left.y + j))
+@d XVAL rf_pixel(rf , ref->frame_id , ref->top_left.x + i, ref->top_left.y + j)
+@d YVAL rf_pixel(rf , tar->frame_id , tar->top_left.x + i, tar->top_left.y + j)
 
 @<Functions@>=
-Float rf_xcorr2d(rf, ref, tar)
+Float rf_xcorr(rf, ref, tar)
  RF *rf;	 /* RF data to work on */
  SubFrame *ref; /* reference sub-frame to track */
  SubFrame *tar; /* target sub-frame to calculate the correlation with reference */
-{@+Uint64 di, dj, n; /* how many pixels to transverse in x and y */
+{@+Uint64 di, dj; /* how many pixels to transverse in x and y */
   register Uint64 i, j; /* x, y sub-frame coordinates */
-  register Uint64 sum_x, sum_y, sum_xx, sum_yy, sum_xy;
+  register Int64 sum_x=0, sum_y=0, sum_xx=0, sum_yy=0, sum_xy=0, n;
   
   assert(rf!=NULL);
   assert(ref!=NULL);
@@ -564,30 +571,32 @@ Float rf_xcorr2d(rf, ref, tar)
 
   @<Initialize |di|, |dj|...@>@;
 
-  for (j = 0; j < dj ; j ++ ) {
-    for (i = 1; i < di ; i++) {
-      sum_x += XVAL;
-      sum_y += YVAL;
-      sum_xx += XVAL * XVAL;
-      sum_yy += YVAL * YVAL;
-      sum_xy += XVAL * YVAL;
+  for (i = 0; i < di ; i++) {
+    for (j = 0; j < dj ; j++ ) {
+      register Uint16 xval = XVAL; /* value of reference pixel */
+      register Uint16 yval = YVAL; /* value of target pixel */
+      sum_x += xval;
+      sum_y += yval;
+      sum_xx += xval * xval;
+      sum_yy += yval * yval;
+      sum_xy += xval * yval;
     }
   }
-  n = di; /* total number of pixels transversed */
+  n = di*dj; /* total number of pixels transversed */
   return ((Float)(n*sum_xy-sum_x*sum_y))/
     sqrt((n*sum_xx-sum_x*sum_x)* 
 	 (n*sum_yy-sum_y*sum_y));
 }  
 
 @ @<Initialize |di|, |dj| and assert the equivalence in geometry between sub-frames@>=
-  di = ref->bottom_right.x - ref->top_left.x;
-dj = ref->bottom_right.y - ref->top_left.y;
+  di = ref->bottom_right.x - ref->top_left.x + 1;
+dj = ref->bottom_right.y - ref->top_left.y + 1;
 assert ((ref->bottom_right.x - ref->top_left.x) == (tar->bottom_right.x - tar->top_left.x));
 assert ((ref->bottom_right.y - ref->top_left.y) == (tar->bottom_right.y - tar->top_left.y));
 
 @* Optimizations. The following prototypes are foreign to {\sc CWEB},
 and for these reasons are generated in separated files ({\tt
-asm/xcorr2d\_sse.asm} and {\tt asm/xcorr2d\_avx.asm}).  The files
+asm/xcorr\_sse.asm} and {\tt asm/xcorr\_avx.asm}).  The files
 contain instructions to calculate cross correlation using Intel x86-64
 assembly language, more specifically the {\tt yasm} assembler.
 
@@ -598,10 +607,10 @@ processor, sometimes is not implemented as optmization in the
 compiler.
 
 The first implementation of cross correlation using Intel x86-64
-  assembly ({\tt asm/xcorr2d\_sse.asm}) takes advantage of Streaming
+  assembly ({\tt asm/xcorr\_sse.asm}) takes advantage of Streaming
   SIMD (single instruction, multiple data) Extensions (SSE) to perform
   some operations on multiple data. The second one ({\tt
-  asm/xcorr2d\_avx.asm}) uses the Intel Advanced Vector Extensions
+  asm/xcorr\_avx.asm}) uses the Intel Advanced Vector Extensions
   (AVX).
 
 The assembly code in the files was described by Ray Seyfarth in the
@@ -609,8 +618,8 @@ book ``Introduction to 64 Bit Intel Assembly Language Programming for
 Linux: Second Edition'' at chapter 19 (Kindle edition).
 \smallskip
 @<Proto...@>=
-  Float xcorr2d_sse(Float x[], Float y[], Uint64 n);
-  Float xcorr2d_avx(Float x[], Float y[], Uint64 n);
+  Float xcorr_sse(Float x[], Float y[], Uint64 n);
+  Float xcorr_avx(Float x[], Float y[], Uint64 n);
 
 @ More portable optimizations using SSE2.
 
@@ -618,86 +627,86 @@ Linux: Second Edition'' at chapter 19 (Kindle edition).
 #include <tmmintrin.h>
 #include <smmintrin.h>
 
-@ @d xVAL(d) *(rf_pixel_ptr(rf , ref->frame_id , ref->top_left.x + i + (d), ref->top_left.y + j))
-@d yVAL(d) *(rf_pixel_ptr(rf , tar->frame_id , tar->top_left.x + i, tar->top_left.y + j + (d)))
-@d _mm_MUL(sum) _mm_mul_epu32(
-			     _mm_set_epi32(_mm_extract_epi32((sum), 0), 1,_mm_extract_epi32((sum), 1), 1)
-			     ,_mm_set_epi32(_mm_extract_epi32((sum), 2), 1, _mm_extract_epi32((sum), 3), 1)
-			     )
+@ 
+@d VAL(subframe, dx,dy) 
+  rf_pixel(rf , subframe->frame_id , 
+	   subframe->top_left.x + (dx), 
+	   subframe->top_left.y + (dy))
+@d _mm_MUL(sum) 
+  _mm_mul_epu32(_mm_set_epi32(_mm_extract_epi32((sum), 0), 1,
+			      _mm_extract_epi32((sum), 1), 1)
+		,_mm_set_epi32(_mm_extract_epi32((sum), 2), 1, 
+			       _mm_extract_epi32((sum), 3), 1))
 @d _mm_MULXY(sumX,sumY) 
-  _mm_add_epi32(
-		_mm_mul_epu32(
-			      _mm_set_epi32(_mm_extract_epi32((sumX), 0), 1,_mm_extract_epi32((sumX), 1), 1),
-			      _mm_set_epi32(_mm_extract_epi32((sumY), 0), 1, _mm_extract_epi32((sumY), 1), 1)
-			      ),
-		_mm_mul_epu32(
-			      _mm_set_epi32(_mm_extract_epi32((sumX), 2), 1,_mm_extract_epi32((sumX), 3), 1),
-			      _mm_set_epi32(_mm_extract_epi32((sumY), 2), 1, _mm_extract_epi32((sumY), 3), 1)
-			      )
-		)
-  
+  _mm_add_epi32(_mm_mul_epu32(_mm_set_epi32(_mm_extract_epi32((sumX), 0), 1,
+					    _mm_extract_epi32((sumX), 1), 1),
+			      _mm_set_epi32(_mm_extract_epi32((sumY), 0), 1, 
+					    _mm_extract_epi32((sumY), 1), 1)),
+		_mm_mul_epu32(_mm_set_epi32(_mm_extract_epi32((sumX), 2), 1,
+					    _mm_extract_epi32((sumX), 3), 1),
+			      _mm_set_epi32(_mm_extract_epi32((sumY), 2), 1, 
+					    _mm_extract_epi32((sumY), 3), 1)))
+@d _mm_extract_and_sum(__mm_sum)
+  (_mm_extract_epi32((__mm_sum), 0) + _mm_extract_epi32((__mm_sum), 1) +
+   _mm_extract_epi32((__mm_sum), 2) + _mm_extract_epi32((__mm_sum), 3))
 
 @<Functions@>=
-Float rf_xcorr2d_sse2(rf, ref, tar)
+Float rf_xcorr_ssec(rf, ref, tar)
 RF *rf;	 /* RF data to work on */
  SubFrame *ref; /* reference sub-frame to track */
  SubFrame *tar; /* target sub-frame to calculate the correlation with reference */
-{@+Uint64 di, dj, n; /* how many pixels to transverse in x and y */
+{@+Uint64 di, dj; /* how many pixels to transverse in x and y */
   register Uint64 i, j; /* x, y sub-frame coordinates */
-  register __m128i sum_x, sum_y, sum_xx, sum_yy, sum_xy;
+  register __m128i __msum_x, __msum_y,  __msum_xx, __msum_yy, __msum_xy;
   register __m128i xval, yval;
-  
+  register __m128i mtxx, mtyy, mtxy;
+  Int64 num, n;
+  Float den;
 
+  __msum_x =  __msum_y = __msum_xx = __msum_yy = __msum_xy = 
+    xval = yval = _mm_set_epi32(0,0,0,0);
+    mtxx= mtyy = mtxy = _mm_set_epi32(1,1,1,1);
   @<Initialize |di|, |dj|...@>@;
 
-  for (j = 0; j < dj/4 ; j+=4 ) {
-    yval = _mm_set_epi32(yVAL(0), yVAL(1), yVAL(2), yVAL(3));
-    for (i = 1; i < di/4 ; i+=4) {
-      xval = _mm_set_epi32(xVAL(0), xVAL(1), xVAL(2), xVAL(3));
+  for (i=0; i<di/4 ; i+=4) {
+    for (j=0; j<dj; j++) {
+
+      xval = _mm_set_epi32(VAL(ref, i,j), VAL(ref, i+1,j), VAL(ref, i+2,j), VAL(ref, i+3,j));
+      yval = _mm_set_epi32(VAL(tar, i,j), VAL(tar, i+1,j), VAL(tar, i+2,j), VAL(tar, i+3,j));
       
-      sum_x = _mm_add_epi32(sum_x, xval);
-      sum_y = _mm_add_epi32(sum_y, yval);
+      __msum_x = _mm_add_epi32(__msum_x, xval);
+
+      __msum_y = _mm_add_epi32(__msum_y, yval);
       
-      sum_xx = _mm_add_epi32(sum_xx, _mm_MUL(sum_x));
-      sum_xy = _mm_MULXY(sum_x, sum_y);
+
+      __msum_xx = _mm_add_epi64(__msum_xx, _mm_mul_epi32(mtxx,__msum_x));
+				
+      
+      
+      __msum_yy = _mm_add_epi32(__msum_yy, _mm_MUL(__msum_y));
+      __msum_xy = _mm_MULXY(__msum_x, __msum_y);
+
+      debug("xval=%u, sum_xx[%d]=%d\n", _mm_extract_epi32(xval, 0), 
+	    3, _mm_extract_epi32(__msum_xx, 3));
     }
   }
+  n = di*dj;
+  num = (n*_mm_extract_and_sum(__msum_xy)-
+	 _mm_extract_and_sum(__msum_x)*_mm_extract_and_sum(__msum_y));
+  den = sqrt(
+	     (
+	      (n*(Float)_mm_extract_and_sum(__msum_xx)-
+	       (Float)_mm_extract_and_sum(__msum_x)*_mm_extract_and_sum(__msum_x))
+	      ) *
+	     (
+	      (n*(Float)_mm_extract_and_sum(__msum_yy)-
+	       (Float)_mm_extract_and_sum(__msum_y)*_mm_extract_and_sum(__msum_y))
+	      )
+	     );
+
+  return (Float)num/den;
   
-  return 0.0;
 }
-
-
-@ The following program performs a trivial test
-  using normalized cross correlation function.
-
-@d NIXUS_TEST_XCORR2D_N 10000ULL
-
-@<Test...@>=
-  static int test_xcorr2d(void);
-  static int test_xcorr2d()
-  {
-    Uint64 N = NIXUS_TEST_XCORR2D_N;
-      pixel_t ref[N], targ[N]; /* reference and target */
-      Uint64 i;
-      Float xcorr=0.0;
-
-      for (i = 0; i < N; i++) {
-	ref[i] = i;
-	//*(targ+i) = rand();
-	targ[i] = ref[i] * 2;
-      }
-#if 1==2
-      TODO redo the test reasoning
-      xcorr = rf_xcorr2d(&ref, &targ);
-#endif
-
-      printf("Cross correlation=%f\n", xcorr);
-
-      return 0;
-    }
-
-
-
 
 @* Sub-frame matching. Sub-frames are divisions of the |REFERENCE| RF
 image that are used to search the most correlate region in the image
@@ -763,8 +772,8 @@ the number of frames@>=
 @ @<Transverse the subdivisions in the reference image@>=
   nrows = rf_frame_nsamples(rf);
   ncols = rf_frame_nvectors(rf);
-  rsf = (SubFrame *)calloc(1, sizeof(SubFrame));
-  tsf = (SubFrame *)calloc(1, sizeof(SubFrame));
+  rsf = (SubFrame *)arena_alloc(rf->arena, sizeof(SubFrame));
+  tsf = (SubFrame *)arena_alloc(rf->arena, sizeof(SubFrame));
 
   for (x=0; x<ncols; x+=dx)
     for (y=0; y<nrows; y+=dy) {
@@ -784,14 +793,13 @@ the number of frames@>=
   for (yy=x; yy+dy<nrows; yy++) {
     for (xx=y; xx+dx<ncols; xx++) {
       @<Update target subframe |tsf|@>@;
-      ncc = rf_xcorr2d(rf, rsf, tsf);
+      ncc = rf_xcorr(rf, rsf, tsf);
       if (ncc > 0.9)
 	debug("NCC(%llu.(%llu,%llu), %llu.(%llu, %llu))=%f\n", 
 	      reference_id, x, y, target_id, xx, yy, ncc);
       if (xx==8) break;
     }
   }
-
 
 @ @<Update target subframe...@>=
   tl.x=xx;tl.y=yy;
@@ -813,22 +821,89 @@ the number of frames@>=
     sf->bottom_right = bottom_right;
   }
 
-@ @d RF_TEST_FILENAME "/opt/nixus/elasto/elasto.rf"
+@ Cross correlation tests.
+
+@d RF_TEST_FN "toy.rf"
+@d _NPIX 16 /* number of pixels */
+
+@<Internal...@>=
+      static void create_rf_toy()
+{@+FILE *fp;
+  U_FileHeader ufh;
+  char *fn = RF_TEST_FN;
+  pixel_t frame_hd[2] = {64,64}; /* frame header data */
+  pixel_t frame0[_NPIX] = {0,4,8,12,1,5,9,13,
+			   2,6,10,14,3,7,11,15}; /* frame 0 */
+  pixel_t frame1[_NPIX] = {20,24,28,32,21,25,29,33,
+  			   20,26,30,34,23,27,31,350}; /* frame 1 */
+  
+  ufh.type = 0x00000010;
+  ufh.frames = 2;
+  ufh.w = 4;
+  ufh.h = 4;
+  ufh.ss = 16;
+  ufh.ulx = 0;
+  ufh.uly = 0;
+  ufh.urx = 0;
+  ufh.ury = 0;
+  ufh.brx = 0;
+  ufh.bry = 0;
+  ufh.blx = 0;
+  ufh.bly = 0;
+  ufh.probe = 0;
+  ufh.txf = 60;
+  ufh.sf = 90;
+  ufh.dr = 0;
+  ufh.ld = 2;
+  ufh.extra = 0;
+  
+  if ((fp = fopen(fn, "wb"))==NULL)
+    die ("Could not open %s.\n", fn);
+
+  fwrite(&ufh, sizeof(ufh), 1, fp);
+  fwrite(&frame_hd, sizeof(frame_hd[0]), sizeof(frame_hd)/sizeof(frame_hd[0]), fp);
+  fwrite(&frame0, sizeof(frame0[0]), sizeof(frame0)/sizeof(frame0[0]), fp);
+  fwrite(&frame_hd, sizeof(frame_hd[0]), sizeof(frame_hd)/sizeof(frame_hd[0]), fp);
+  fwrite(&frame1, sizeof(frame1[0]), sizeof(frame1)/sizeof(frame1[0]), fp);
+  
+  fclose(fp);
+}
+
+@ 
+@d EPSILON 0.000001
+@d fequals(a,b) (fabs((a)-(b))<=EPSILON)
 @<Test...@>=
 @<Header...@>@;
-  static int test_match(void);
-  static int test_match()
+  static int test_xcorr(void);
+  static int test_xcorr()
   {
     RF *rf;
-    struct ratio ratio = {.x=4, .y=8};
-    ((void )0);
-    
-    rf = rf_read(RF_TEST_FILENAME);
-    
-    rf_match(rf, 0, 4, ratio);
+    Float xcorr, xcorr_ssec;
+    SubFrame ref= {0, .top_left = {.x=0,.y=0}, .bottom_right={.x=3,.y=1}}, tar = ref;
+    tar.frame_id = 1;
 
-    pgm_write(rf, 2, "/tmp/2.pgm");
+    create_rf_toy();
 
+    rf = rf_read(RF_TEST_FN);
+    ref.frame_id = 0; 
+    ref.top_left.x=0;
+    ref.top_left.y=0;
+    ref.bottom_right.x=rf->file_header->w-1;
+    ref.bottom_right.y=rf->file_header->h-1;
+    tar = ref;
+    tar.frame_id = 1;
+    
+    xcorr = rf_xcorr(rf, &ref, &tar);
+    xcorr_ssec = rf_xcorr_ssec(rf, &ref, &tar);
+
+    debug("xcorr=%f\txcorr_ssec=%f\t xcorr TESTs OK\n",  xcorr, xcorr_ssec);
+
+    if (!fequals(xcorr,1.0000))
+      die("TEST FAILED!\n");
+    else
+      debug("xcorr=%f\txcorr_ssec=%f\t xcorr TESTs OK\n",  xcorr, xcorr_ssec);
+
+      
     return 0;
   }
 
@@ -886,8 +961,8 @@ information is printed.
 
 @<Macro...@>=
 #ifdef NDEBUG
-#define debug_err(format, ...) ((void *)(0))
-#define debug(format, ...) ((void *)0)
+#define debug_err(format, ...) ;
+#define debug(format, ...) ;
 #else
 #define debug(format, ...) do {						\
       fprintf(stdout, "%d:%s->%s(): ", __LINE__, __FILE__, __FUNCTION__);	\
