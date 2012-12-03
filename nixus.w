@@ -10,12 +10,18 @@ SonixRP system containing ultrasound scan lines in raw format. The
 objective of this project is to measure displacements in the material
 being scanned using differences in the RF frames obtained during the 
 scan.
-  
-@p
-@<Header files@>@;
+
+@(nixus.h@>=
+#ifndef _NIXUS_H_
+#define _NIXUS_H_
 @<Macro declarations@>@;
 @<Type definitions@>@;
 @<Prototypes@>@;
+#endif  
+
+@ The program.
+@p
+@<Header files@>@;
 @<Private variables@>@;
 @<Internal functions@>@;
 @<Memory management@>@;
@@ -43,6 +49,7 @@ int main(argc, argv)
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "nixus.h"
 
 @ We make some aliases for common types to know 
 the wide in bits.
@@ -118,10 +125,11 @@ typedef struct u_file_header {
 information, acting as interface and avoiding direct access to
 variables.
 
-@d u_nframes(ufh) ufh->frames
-@d u_frame_width(ufh) ufh->w
-@d u_frame_height(ufh) ufh->h
-@d u_sample_size(ufh) ufh->ss /* sample size in bits */
+@<Macro...@>=
+#define u_nframes(ufh) ufh->frames
+#define u_frame_width(ufh) ufh->w
+#define u_frame_height(ufh) ufh->h
+#define u_sample_size(ufh) ufh->ss /* sample size in bits */
 
 @ @<Proto...@>=
  extern void u_print_file_header(U_FileHeader*ufh);
@@ -209,21 +217,23 @@ pointer to pass |RF| through the program.
 @ Some macros to access RF information are defined to expose
 a clean accession interface.
 
-@d RF_FRAME_HEADER_SZ 4 /* 4-byte frame header */
-@d RF_FRAME_HEADER_NPIX 2 /* number of pixels in the frame header (each pixel is 2-byte) */
-@d rf_frame_nvectors(rf) u_frame_width(rf->file_header)
-@d rf_frame_nsamples(rf) u_frame_height(rf->file_header)
-@d rf_nframes(rf) u_nframes(rf->file_header)
+@<Macro...@>=
+#define RF_FRAME_HEADER_SZ 4 /* 4-byte frame header */
+#define RF_FRAME_HEADER_NPIX 2 /* number of pixels in the frame header (each pixel is 2-byte) */
+#define rf_frame_nvectors(rf) u_frame_width(rf->file_header)
+#define rf_frame_nsamples(rf) u_frame_height(rf->file_header)
+#define rf_nframes(rf) u_nframes(rf->file_header)
 /* number of pixels in the frame */ 
-@d rf_frame_data_npixels(rf)  /* not taking into account frame header */
+/* not taking into account frame header */
+#define rf_frame_data_npixels(rf) \
   (rf_frame_nvectors((rf))*rf_frame_nsamples((rf)))
     
-@d rf_frame_npixels(rf) /* number of pixels in the frame $\rightarrow$ header + data */
+#define rf_frame_npixels(rf) \/* number of pixels in the frame $\rightarrow$ header + data */
      (2 + rf_frame_data_npixels((rf)))
   
-@d rf_frame_nbytes(rf) (rf_frame_npixels(rf)*2) /* in bytes */
-@d rf_npixels(rf) ((rf_frame_npixels(rf))*rf_nframes(rf))
-@d rf_nbytes(rf) (rf_npixels(rf)*sizeof(pixel_t)) /* in bytes */
+#define rf_frame_nbytes(rf) (rf_frame_npixels(rf)*2) /* in bytes */
+#define rf_npixels(rf) ((rf_frame_npixels(rf))*rf_nframes(rf))
+#define rf_nbytes(rf) (rf_npixels(rf)*sizeof(pixel_t)) /* in bytes */
 
 @* {RF data}.The lines are recorded as showed in the
 Figure~1, where each sample is recorded as it arrives, and
@@ -256,14 +266,15 @@ where
   Figure~2 (image) is done to access the right pixel at
   the desired position.
 
-@d rf_pixel_ptr(rf, frame_no, x, y) (rf->data		
-+ rf_frame_npixels(rf)*frame_no				
-+ RF_FRAME_HEADER_NPIX				
-+ (x)*rf_frame_nvectors((rf))			
-+ (y))
-@d rf_pixel(rf, frame_no, x, y) *rf_pixel_ptr((rf), (frame_no), (x), (y))
+@<Macro...@>=
+#define rf_pixel_ptr(rf, frame_no, x, y) (rf->data \
+  + rf_frame_npixels(rf)*frame_no	       \
+  + RF_FRAME_HEADER_NPIX	\
+  + (x)*rf_frame_nvectors((rf))			\
+  + (y))
+#define rf_pixel(rf, frame_no, x, y) *rf_pixel_ptr((rf), (frame_no), (x), (y))
 
-@<Functions@>=
+@ @<Functions@>=
 RF *rf_new () 
 {
   cur_rf = calloc(1, sizeof(RF));
@@ -355,11 +366,11 @@ same time in batch mode.
   } Arena;
 
 @ @<Proto...@>=
-  Arena *arena_new(void);
-void arena_dispose(Arena**);
-void *arena_alloc(Arena*, Int64 nbytes);
-void *arena_calloc(Arena*, Int64 count, Int64 nbytes);
-void arena_free(Arena*);
+extern  Arena *arena_new(void);
+extern void arena_dispose(Arena**);
+extern void *arena_alloc(Arena*, Int64 nbytes);
+extern void *arena_calloc(Arena*, Int64 count, Int64 nbytes);
+extern void arena_free(Arena*);
 
 @ @<Memory...@>=
   Arena *arena_new()
@@ -550,7 +561,7 @@ typedef struct subframe {
 $x_i$, $y_i$, $x_i^2$, $y_i^2$, $x_iy_i$.
 
 @<Proto...@>=
-  Float rf_xcorr(RF*rf, SubFrame *reference, SubFrame *target);
+  extern Float rf_xcorr(RF*rf, SubFrame *reference, SubFrame *target);
 		       
 @ 
 @d XVAL rf_pixel(rf , ref->frame_id , ref->top_left.x + i, ref->top_left.y + j)
@@ -618,8 +629,8 @@ book ``Introduction to 64 Bit Intel Assembly Language Programming for
 Linux: Second Edition'' at chapter 19 (Kindle edition).
 \smallskip
 @<Proto...@>=
-  Float xcorr_sse(Float x[], Float y[], Uint64 n);
-  Float xcorr_avx(Float x[], Float y[], Uint64 n);
+extern Float xcorr_sse(Float x[], Float y[], Uint64 n);
+extern Float xcorr_avx(Float x[], Float y[], Uint64 n);
 
 @ More portable optimizations using SSE2.
 
@@ -718,7 +729,7 @@ interest (ROI) to avoid collision with the same term used in the RF
 file header. 
 
 @<Proto...@>=
-void rf_match(RF*rf, Uint64 rid, Uint64 tid, struct ratio r);
+extern void rf_match(RF*rf, Uint64 rid, Uint64 tid, struct ratio r);
 
 @ @<Type...@>=
 struct ratio {
