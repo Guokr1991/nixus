@@ -18,16 +18,11 @@ xcorr_avx.o: force_look
 xcorr_nat.o: force_look
 	cd asm; $(MAKE) ../$@
 
-x86: x86.c xcorr_nat.o
-	$(CC) -o $@  $(CFLAGS) -ggdb $^ $(LDFLAGS)
-
-$(proj): $(proj).c xcorr_sse.o xcorr_avx.o 
+$(proj): $(proj).c xcorr_sse.o xcorr_avx.o xcorr_nat.o 
 	$(CC) -o $@ $^ $(SSEFLAGS) $(LDFLAGS);\
-	make backup
 
 $(proj).dbg: $(proj).c xcorr2d_sse.o
 	$(CC) -o $@ $^ $(DBGFLAGS) $(LDFLAGS)
-	make backup
 
 .PHONY: force_look
 
