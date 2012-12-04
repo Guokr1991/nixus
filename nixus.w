@@ -28,9 +28,9 @@ scan.
 @<Functions@>@;
 @<Test procedures@>@;
 
-int main(argc, argv) 
-     int argc;
-     char**argv;
+  int main(argc, argv) 
+  int argc;
+  char**argv;
 {
 #if 1==2
   test_match();
@@ -561,49 +561,38 @@ typedef struct subframe {
 $x_i$, $y_i$, $x_i^2$, $y_i^2$, $x_iy_i$.
 
 @<Proto...@>=
-  extern Float rf_xcorr(RF*rf, SubFrame *reference, SubFrame *target);
-		       
-@ 
-@d XVAL rf_pixel(rf , ref->frame_id , ref->top_left.x + i, ref->top_left.y + j)
-@d YVAL rf_pixel(rf , tar->frame_id , tar->top_left.x + i, tar->top_left.y + j)
+  extern Float xcorr(Int64*x, Int64*y, Int64 n);
+	
+@ @d EPSILON 0.000001
 
 @<Functions@>=
-Float rf_xcorr(rf, ref, tar)
- RF *rf;	 /* RF data to work on */
- SubFrame *ref; /* reference sub-frame to track */
- SubFrame *tar; /* target sub-frame to calculate the correlation with reference */
-{@+Uint64 di, dj; /* how many pixels to transverse in x and y */
-  register Uint64 i, j; /* x, y sub-frame coordinates */
-  register Int64 sum_x=0, sum_y=0, sum_xx=0, sum_yy=0, sum_xy=0, n;
-  
-  assert(rf!=NULL);
-  assert(ref!=NULL);
-  assert(tar!=NULL);
+  Float xcorr(x, y, n)
+  Int64 *x, *y, n;
+{@+register Int64 i;
+  register Int64 sum_x=0, sum_y=0, sum_xx=0, sum_yy=0, sum_xy=0;
+  Float den, num;
 
-  @<Initialize |di|, |dj|...@>@;
+  assert(x && y);
 
-  for (i = 0; i < di ; i++) {
-    for (j = 0; j < dj ; j++ ) {
-      register Uint16 xval = XVAL; /* value of reference pixel */
-      register Uint16 yval = YVAL; /* value of target pixel */
-      sum_x += xval;
-      sum_y += yval;
-      sum_xx += xval * xval;
-      sum_yy += yval * yval;
-      sum_xy += xval * yval;
-    }
+  for (i = 0; i < n ; i++) {
+    register Int64 xval = *(x+i);
+    register Int64 yval = *(y+i);
+    sum_x += xval;
+    sum_y += yval;
+    sum_xx += xval * xval;
+    sum_yy += yval * yval;
+    sum_xy += xval * yval;
   }
-  n = di*dj; /* total number of pixels transversed */
-  return ((Float)(n*sum_xy-sum_x*sum_y))/
-    sqrt((n*sum_xx-sum_x*sum_x)* 
-	 (n*sum_yy-sum_y*sum_y));
-}  
 
-@ @<Initialize |di|, |dj| and assert the equivalence in geometry between sub-frames@>=
-  di = ref->bottom_right.x - ref->top_left.x + 1;
-dj = ref->bottom_right.y - ref->top_left.y + 1;
-assert ((ref->bottom_right.x - ref->top_left.x) == (tar->bottom_right.x - tar->top_left.x));
-assert ((ref->bottom_right.y - ref->top_left.y) == (tar->bottom_right.y - tar->top_left.y));
+  num = ((Float)(n*sum_xy-sum_x*sum_y));
+  den = sqrt((n*sum_xx-sum_x*sum_x)* 
+	     (n*sum_yy-sum_y*sum_y));
+
+  if (!(fabs(den-den)>EPSILON))
+    return 1.0;
+  else
+    return num/den;
+} 
 
 @* Optimizations. The following prototypes are foreign to {\sc CWEB},
 and for these reasons are generated in separated files ({\tt
@@ -632,92 +621,13 @@ Linux: Second Edition'' at chapter 19 (Kindle edition).
 extern Float xcorr_sse(Float x[], Float y[], Uint64 n);
 extern Float xcorr_avx(Float x[], Float y[], Uint64 n);
 
-@ More portable optimizations using SSE2.
 
-@<Header...@>=
-#include <tmmintrin.h>
-#include <smmintrin.h>
+@ |xcorr_nat| function handles integers.
 
-@ 
-@d VAL(subframe, dx,dy) 
-  rf_pixel(rf , subframe->frame_id , 
-	   subframe->top_left.x + (dx), 
-	   subframe->top_left.y + (dy))
-@d _mm_MUL(sum) 
-  _mm_mul_epu32(_mm_set_epi32(_mm_extract_epi32((sum), 0), 1,
-			      _mm_extract_epi32((sum), 1), 1)
-		,_mm_set_epi32(_mm_extract_epi32((sum), 2), 1, 
-			       _mm_extract_epi32((sum), 3), 1))
-@d _mm_MULXY(sumX,sumY) 
-  _mm_add_epi32(_mm_mul_epu32(_mm_set_epi32(_mm_extract_epi32((sumX), 0), 1,
-					    _mm_extract_epi32((sumX), 1), 1),
-			      _mm_set_epi32(_mm_extract_epi32((sumY), 0), 1, 
-					    _mm_extract_epi32((sumY), 1), 1)),
-		_mm_mul_epu32(_mm_set_epi32(_mm_extract_epi32((sumX), 2), 1,
-					    _mm_extract_epi32((sumX), 3), 1),
-			      _mm_set_epi32(_mm_extract_epi32((sumY), 2), 1, 
-					    _mm_extract_epi32((sumY), 3), 1)))
-@d _mm_extract_and_sum(__mm_sum)
-  (_mm_extract_epi32((__mm_sum), 0) + _mm_extract_epi32((__mm_sum), 1) +
-   _mm_extract_epi32((__mm_sum), 2) + _mm_extract_epi32((__mm_sum), 3))
+@<Proto...@>=
+  extern Float xcorr_nat(Int64 x[], Int64 y[], Int64 n);
 
-@<Functions@>=
-Float rf_xcorr_ssec(rf, ref, tar)
-RF *rf;	 /* RF data to work on */
- SubFrame *ref; /* reference sub-frame to track */
- SubFrame *tar; /* target sub-frame to calculate the correlation with reference */
-{@+Uint64 di, dj; /* how many pixels to transverse in x and y */
-  register Uint64 i, j; /* x, y sub-frame coordinates */
-  register __m128i __msum_x, __msum_y,  __msum_xx, __msum_yy, __msum_xy;
-  register __m128i xval, yval;
-  register __m128i mtxx, mtyy, mtxy;
-  Int64 num, n;
-  Float den;
 
-  __msum_x =  __msum_y = __msum_xx = __msum_yy = __msum_xy = 
-    xval = yval = _mm_set_epi32(0,0,0,0);
-    mtxx= mtyy = mtxy = _mm_set_epi32(1,1,1,1);
-  @<Initialize |di|, |dj|...@>@;
-
-  for (i=0; i<di/4 ; i+=4) {
-    for (j=0; j<dj; j++) {
-
-      xval = _mm_set_epi32(VAL(ref, i,j), VAL(ref, i+1,j), VAL(ref, i+2,j), VAL(ref, i+3,j));
-      yval = _mm_set_epi32(VAL(tar, i,j), VAL(tar, i+1,j), VAL(tar, i+2,j), VAL(tar, i+3,j));
-      
-      __msum_x = _mm_add_epi32(__msum_x, xval);
-
-      __msum_y = _mm_add_epi32(__msum_y, yval);
-      
-
-      __msum_xx = _mm_add_epi64(__msum_xx, _mm_mul_epi32(mtxx,__msum_x));
-				
-      
-      
-      __msum_yy = _mm_add_epi32(__msum_yy, _mm_MUL(__msum_y));
-      __msum_xy = _mm_MULXY(__msum_x, __msum_y);
-
-      debug("xval=%u, sum_xx[%d]=%d\n", _mm_extract_epi32(xval, 0), 
-	    3, _mm_extract_epi32(__msum_xx, 3));
-    }
-  }
-  n = di*dj;
-  num = (n*_mm_extract_and_sum(__msum_xy)-
-	 _mm_extract_and_sum(__msum_x)*_mm_extract_and_sum(__msum_y));
-  den = sqrt(
-	     (
-	      (n*(Float)_mm_extract_and_sum(__msum_xx)-
-	       (Float)_mm_extract_and_sum(__msum_x)*_mm_extract_and_sum(__msum_x))
-	      ) *
-	     (
-	      (n*(Float)_mm_extract_and_sum(__msum_yy)-
-	       (Float)_mm_extract_and_sum(__msum_y)*_mm_extract_and_sum(__msum_y))
-	      )
-	     );
-
-  return (Float)num/den;
-  
-}
 
 @* Sub-frame matching. Sub-frames are divisions of the |REFERENCE| RF
 image that are used to search the most correlate region in the image
@@ -737,86 +647,6 @@ struct ratio {
   int y;
 };
 
-@ The |rf_match| function transverse all sub-frames in the reference
-image and find the coordinates of most correlate area in the target
-image that represents the strain in the sample.
-
-@<Function...@>=
-  void rf_match(rf, reference_id, target_id, ratio)
-  RF*rf; /* reference image */
-  Uint64 reference_id; /* index of reference image */
-  Uint64 target_id; /* target index of image to compare with reference */
-  struct ratio ratio; /* ratio in the row and column */
-  {
-    register Float ncc=0;
-    Uint64 i, dx=0, dy=0;
-    Uint64 indices[2] = {reference_id, target_id}; 
-    @<Local variables for |rf_match|@>@;
-
-    @<Assert indices...@>@;
-
-    debug("ratio(x,y)=(%d,%d)\n", ratio.x, ratio.y);
-
-    dx = rf_frame_nvectors(rf)/(float)ratio.x; 
-    dy = rf_frame_nsamples(rf)/(float)ratio.y; 
-    
-    debug("d(x,y)=(%llu,%llu)\n", dx, dy);
-
-    @<Transverse the subdivisions in the reference image@>@;
-    
-    return;
-  }
-
-@ @<Assert indices are greater or equal than zero and not greater than
-the number of frames@>=
-  for (i=0; i<2; i++) {
-    assert(indices[i] >= 0);
-    assert(indices[i] < rf_nframes(rf));
-  }
-
-@ @<Local variables for |rf_match|@>=
-  register Uint64 x, y, ncols, nrows;
-  SubFrame *rsf, *tsf; /* temporary reference and target sub-frames */
-  struct coordinate tl, br;
-  
-
-@ @<Transverse the subdivisions in the reference image@>=
-  nrows = rf_frame_nsamples(rf);
-  ncols = rf_frame_nvectors(rf);
-  rsf = (SubFrame *)arena_alloc(rf->arena, sizeof(SubFrame));
-  tsf = (SubFrame *)arena_alloc(rf->arena, sizeof(SubFrame));
-
-  for (x=0; x<ncols; x+=dx)
-    for (y=0; y<nrows; y+=dy) {
-      @<Update reference subframe@>@;
-      @<Find the best match in the target image@>@;
-    }
-
-@ @<Update reference subframe@>=
-  tl.x=x;tl.y=y;
-  br.x=x+dx;br.y=y+dy;
-  subframe_new(rsf, reference_id, tl, br);
-
-@ @<Local variables for |rf_match|@>=
-  Uint64 xx, yy; /* indices for target subframe */
-
-@ @<Find the best match in the target image@>=
-  for (yy=x; yy+dy<nrows; yy++) {
-    for (xx=y; xx+dx<ncols; xx++) {
-      @<Update target subframe |tsf|@>@;
-      ncc = rf_xcorr(rf, rsf, tsf);
-      if (ncc > 0.9)
-	debug("NCC(%llu.(%llu,%llu), %llu.(%llu, %llu))=%f\n", 
-	      reference_id, x, y, target_id, xx, yy, ncc);
-      if (xx==8) break;
-    }
-  }
-
-@ @<Update target subframe...@>=
-  tl.x=xx;tl.y=yy;
-  br.x=xx+dx;br.y=yy+dy;
-  subframe_new(tsf, target_id, tl, br);
-
 @ @<Internal...@>=
   static void subframe_new(sf, frame_id, top_left, bottom_right)
   SubFrame *sf;
@@ -830,92 +660,6 @@ the number of frames@>=
     sf->frame_id = frame_id;
     sf->top_left = top_left;
     sf->bottom_right = bottom_right;
-  }
-
-@ Cross correlation tests.
-
-@d RF_TEST_FN "toy.rf"
-@d _NPIX 16 /* number of pixels */
-
-@<Internal...@>=
-      static void create_rf_toy()
-{@+FILE *fp;
-  U_FileHeader ufh;
-  char *fn = RF_TEST_FN;
-  pixel_t frame_hd[2] = {64,64}; /* frame header data */
-  pixel_t frame0[_NPIX] = {0,4,8,12,1,5,9,13,
-			   2,6,10,14,3,7,11,15}; /* frame 0 */
-  pixel_t frame1[_NPIX] = {20,24,28,32,21,25,29,33,
-  			   20,26,30,34,23,27,31,350}; /* frame 1 */
-  
-  ufh.type = 0x00000010;
-  ufh.frames = 2;
-  ufh.w = 4;
-  ufh.h = 4;
-  ufh.ss = 16;
-  ufh.ulx = 0;
-  ufh.uly = 0;
-  ufh.urx = 0;
-  ufh.ury = 0;
-  ufh.brx = 0;
-  ufh.bry = 0;
-  ufh.blx = 0;
-  ufh.bly = 0;
-  ufh.probe = 0;
-  ufh.txf = 60;
-  ufh.sf = 90;
-  ufh.dr = 0;
-  ufh.ld = 2;
-  ufh.extra = 0;
-  
-  if ((fp = fopen(fn, "wb"))==NULL)
-    die ("Could not open %s.\n", fn);
-
-  fwrite(&ufh, sizeof(ufh), 1, fp);
-  fwrite(&frame_hd, sizeof(frame_hd[0]), sizeof(frame_hd)/sizeof(frame_hd[0]), fp);
-  fwrite(&frame0, sizeof(frame0[0]), sizeof(frame0)/sizeof(frame0[0]), fp);
-  fwrite(&frame_hd, sizeof(frame_hd[0]), sizeof(frame_hd)/sizeof(frame_hd[0]), fp);
-  fwrite(&frame1, sizeof(frame1[0]), sizeof(frame1)/sizeof(frame1[0]), fp);
-  
-  fclose(fp);
-}
-
-@ 
-@d EPSILON 0.000001
-@d fequals(a,b) (fabs((a)-(b))<=EPSILON)
-@<Test...@>=
-@<Header...@>@;
-  static int test_xcorr(void);
-  static int test_xcorr()
-  {
-    RF *rf;
-    Float xcorr, xcorr_ssec;
-    SubFrame ref= {0, .top_left = {.x=0,.y=0}, .bottom_right={.x=3,.y=1}}, tar = ref;
-    tar.frame_id = 1;
-
-    create_rf_toy();
-
-    rf = rf_read(RF_TEST_FN);
-    ref.frame_id = 0; 
-    ref.top_left.x=0;
-    ref.top_left.y=0;
-    ref.bottom_right.x=rf->file_header->w-1;
-    ref.bottom_right.y=rf->file_header->h-1;
-    tar = ref;
-    tar.frame_id = 1;
-    
-    xcorr = rf_xcorr(rf, &ref, &tar);
-    xcorr_ssec = rf_xcorr_ssec(rf, &ref, &tar);
-
-    debug("xcorr=%f\txcorr_ssec=%f\t xcorr TESTs OK\n",  xcorr, xcorr_ssec);
-
-    if (!fequals(xcorr,1.0000))
-      die("TEST FAILED!\n");
-    else
-      debug("xcorr=%f\txcorr_ssec=%f\t xcorr TESTs OK\n",  xcorr, xcorr_ssec);
-
-      
-    return 0;
   }
 
 
@@ -965,6 +709,194 @@ inspect pixel value to debug the algorithms.
     return;
   }
 
+
+@ Cross correlation tests.
+
+@d RF_TEST_FN "toy.rf"
+@d _NPIX 16 /* number of pixels */
+
+@<Internal...@>=
+      static void create_rf_toy()
+{@+FILE *fp;
+  U_FileHeader ufh;
+  char *fn = RF_TEST_FN;
+  pixel_t frame_hd[2] = {64,64}; /* frame header data */
+  pixel_t frame0[_NPIX] = {0,4,8,12,1,5,9,13,
+			   2,6,10,14,3,7,11,15}; /* frame 0 */
+  pixel_t frame1[_NPIX] = {20,24,28,32,21,25,29,33,
+  			   20,26,30,34,23,27,31,350}; /* frame 1 */
+  
+  ufh.type = 0x00000010;
+  ufh.frames = 2;
+  ufh.w = 4;
+  ufh.h = 4;
+  ufh.ss = 16;
+  ufh.ulx = 0;
+  ufh.uly = 0;
+  ufh.urx = 0;
+  ufh.ury = 0;
+  ufh.brx = 0;
+  ufh.bry = 0;
+  ufh.blx = 0;
+  ufh.bly = 0;
+  ufh.probe = 0;
+  ufh.txf = 60;
+  ufh.sf = 90;
+  ufh.dr = 0;
+  ufh.ld = 2;
+  ufh.extra = 0;
+  
+  if ((fp = fopen(fn, "wb"))==NULL)
+    die ("Could not open %s.\n", fn);
+
+  fwrite(&ufh, sizeof(ufh), 1, fp);
+  fwrite(&frame_hd, sizeof(frame_hd[0]), sizeof(frame_hd)/sizeof(frame_hd[0]), fp);
+  fwrite(&frame0, sizeof(frame0[0]), sizeof(frame0)/sizeof(frame0[0]), fp);
+  fwrite(&frame_hd, sizeof(frame_hd[0]), sizeof(frame_hd)/sizeof(frame_hd[0]), fp);
+  fwrite(&frame1, sizeof(frame1[0]), sizeof(frame1)/sizeof(frame1[0]), fp);
+  
+  fclose(fp);
+}
+
+@ @d __N 0x1000000ULL
+
+@<Private...@>=
+static Int64 x[__N];
+static Int64 y[__N];
+
+@ @<Test...@>=
+ void  test_xcorr();
+ void  test_xcorr()
+{@+Uint64 i;
+
+  for (i=0; i<__N; i++) {
+    x[i] = 1+i;
+    y[i] = 1+2*i;
+  }
+
+ do_xcorr(xcorr_nat, &x[0], &y[0], __N);
+ do_xcorr(xcorr, &x[0], &y[0], __N);
+
+}
+
+
+@ Common includes.
+
+@<Header...@>=
+#include <stdio.h>
+#include <stdlib.h>
+#include "nixus.h"
+
+@ Time.
+
+@<Header...@>=
+#include <sys/times.h>
+
+@ @<Internal...@>=
+  static double time();
+static double time() 
+{
+struct tms t;
+times(&t);
+return (t.tms_utime+t.tms_stime)/100.0;
+}
+
+@ @<Internal...@>=
+  static void do_xcorr(Float (*xcorr_func)(Int64*x,Int64*y,Int64 n), 
+			 Int64 *x, Int64 *y, Int64 n);
+  static void do_xcorr(xcorr_func, x, y, n)
+  Float (*xcorr_func)(Int64 *x, Int64 *y, Int64 n);
+Int64 *x, *y;
+  Int64 n;
+{@+Float c;
+  Float start, end;
+
+  start = time();
+  c = xcorr_func(x, y, __N);
+  end = time();
+  
+  printf("%llu numbers, xcorr=%f\n", __N, c);
+  printf("%10.4f\n", end-start);
+}
+
+@* x86 64-Bit Assembly. This section contains technical information 
+and tips for optimizing x86-64 assembly code. It is a difficult task
+to mantain the document updated because changes in the processor are 
+very fast, but we intend to put some good tips and techniques that 
+are more stable.
+
+SSE2 128-Bit SIMD Integer Instructions. Integer values can be 
+processed using SSE2 instruction specific for this purpose. 128-Bit 
+data can be stored in the registers. 
+
+The XMMMx-registers introduced in the SSE2 instruction set 
+  extensions store 128-bit that can be aligned as follows:
+
+
+\hfil\vbox{
+\+1$\times$ 128-bit raw integer&\cr  
+\+2$\times$ 64-bit integer&\cr
+\+4$\times$ 32-bit integer&\cr
+\+8$\times$ 16-bit integer&\cr
+\+16$\times$ 8-bit integer&\cr
+\+2$\times$ 64-bit floating point values&\cr
+\+4$\times$ 32-bit floating point values&\cr
+}
+
+	
+@ {\tt MOVDQA} moves aligned double quadword, as an example,
+the instruction
+
+$$\vbox{\+\tt MOVEQDA xmm2/m128, xmm1\cr}$$
+
+fetchs the content of {\tt xmm1} and moves it to {\tt xmm2}. 
+The {\tt MOVDQA} operation corresponds to:
+
+$$\vbox{\+\tt DEST $\leftarrow$ SRC;\hfill\cr}$$
+
+@ {\tt PADDQ} instruction with 128-Bit operands
+
+$$\vbox{\+\tt PADDQ xmm1, xmm2/m128;\cr}$$
+
+\noindent adds packed quadword integers xmm2/m128 to xmm1. 
+The {\tt PADDQ} corresponds to:
+
+$$\tt\settabs 4\columns
+\vbox{\+DEST[63-0] $\leftarrow$ DEST[31-0] + SRC[31-0];\hfill&&&\cr
+      \+DEST[127-64] $\leftarrow$ DEST[95-64] + SRC[95-64];&\cr}
+$$
+
+@ {\tt PMULUDQ} instruction with 128-Bit operands
+
+$$\vbox{\+\tt PMULUDQ xmm1, xmm2/m128;\cr}$$
+
+\noindent multiplies packed unsigned doubleword integers in {\tt xmm1} 
+ packed by the unsigned doubleword integers in {\tt xmm2$/$m128}, and store 
+  quadword results {\tt xmm1}. The {\tt PMULUDQ} operation corresponds
+  to:
+
+$$\tt\settabs 4\columns
+\vbox{\+DEST[63-0] $\leftarrow$ DEST[31-0] * SRC[31-0];\hfill&&&\cr
+      \+DEST[127-64] $\leftarrow$ DEST[95-64] * SRC[95-64];&\cr}
+$$
+
+@ The instruction
+
+$\vbox{\hfil\tt HADDPD xmm0, xmm0}$%
+
+ is equivalent to
+
+$\hfill\vbox{\hfil\tt  xmm0[63-0] $\leftarrow$ xmm0[63-0] + xmmo[127-64];}$%
+
+and it stores the addition of double-precision low and high quadwords in the low 
+quadword in the destination operand.
+
+@ cvtdq2pd
+
+
+@* Index.
+
+
 @* Utilities. The macro |die| shows a message with the line number,
 file and function names, and |abort| the execution of the program. If
 |NDEBUG| macro is defined, no error is evaluated and no |debug|
@@ -988,6 +920,8 @@ information is printed.
     debug_err(format, ## __VA_ARGS__);					\
     abort();								\
   } while(0)
+
+
 
 
 @* TODO. The following tasks are pending, and the priority are
