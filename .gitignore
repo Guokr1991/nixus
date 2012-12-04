@@ -1,9 +1,16 @@
-# emacs backup
+# generated data
+*.rf
+
+# emacs 
 *~
+.emacs.*
+
+# vi
 *.swp
 
 # cweb generated files
-*.tox
+*.toc
+*.out
 nixus.c
 nixus.pdf
 nixus.tex
@@ -14,6 +21,12 @@ nixus.dbg
 
 # project log
 nixus.org
+
+# assembly
+*.lst
+
+# headers
+*.h
 
 # Compiled Object files
 *.slo
@@ -31,7 +44,3 @@ nixus.org
 # reference implementation study
 libpng*
 zlib*
-
-# cmake
-CMakeCache.txt
-CMakeFiles
