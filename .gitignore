@@ -1,14 +1,23 @@
 # generated data
 *.rf
 
+# R
+.R*
+
 # emacs 
 *~
 .emacs.*
+_region_*
+auto
+
 
 # vi
 *.swp
 
 # cweb generated files
+*.idx
+*.log
+*.scn
 *.toc
 *.out
 nixus.c
