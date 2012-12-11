@@ -1,12 +1,12 @@
 ;; Intel x68-64 assembly code to calculate cross correlation
-;; using SSE instructions, where the value domain is the
+;; using SSE2 instructions, where the value domain is the
 ;; Naturals.
-;;; A detailed description about the instructions is written
-;;; at ../x86.w
+;; A detailed description about the instructions is written
+;; at ../../nixus.w
 ;; Author: Adriano J. Holanda
-;;; ajholanda@gmail.com
-;;; License: Apache v2
-;;; http://www.apache.org/licenses/LICENSE-2.0.txt
+;; ajholanda@gmail.com
+;; License: Apache v2
+;; http://www.apache.org/licenses/LICENSE-2.0.txt
 	segment .data
 one	dq	1
         segment .text
