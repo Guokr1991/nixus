@@ -1,0 +1,96 @@
+#+TITLE: Relatório de apoio técnico
+#+AUTHOR: Adriano de Jesus Holanda 
+#+EMAIL: aholanda@usp.br
+#+OPTIONS: toc:nil
+
+* Introdução
+
+O apoio técnico dado ao projeto XXXX está se desenvolvendo em 3
+etapas:
+
+1. Levantamento bibliográfico dos conceitos relacionados ao projeto de
+   pesquisa;
+
+2. Estudo formato de imagens geradas pelo equipamento de ultrassom
+   UltraSonix modelo RP;
+
+3. Implementação dos programas básicos para manipulação das imagens no
+   formato RF e da função de correlação cruzada.
+
+* Levantamento bibliográfico
+
+Na primeira etapa, que compreendeu o final do ano de 2011 e primeiro
+semestre de 2012, foi feito um levantamento bibliográfico a respeito
+do tema ao qual o suporte técnico seria fornecido.
+
+Os seguintes temas foram estudados para adequação do projeto às
+técnicas utilizadas atualmente para o estudo elastográfico de imagens
+obtidas a partir de equipamento de ultrassom:
+
+- Pesquisas utilizando o equipamento Ultrasonix RP;
+- Elastografia;
+- Princípios do ultrassom;
+- Transformada de Hilbert;
+- Medidas de similaridade.
+
+* Estudo do manual do equipamento de ultrassom
+
+O manual do equipamento Ultrasonix RP foi estudado para entendimento
+do funcionamento básico do equipamento e principalmente do formato dos
+dados. Este formato é conhecido como RF (radio frequency) e contém
+toda informação proveniente das ondas de ultrassom refletidas no
+objeto de estudo, antes qualquer processamento, tais como, aplicação
+de filtros, detecção de envelope e compressão.
+
+* Desenvolvimento dos programas de auxílio à pesquisa
+
+Na segunda etapa do apoio, que compreendeu parte do primeiro e segundo
+semestres de 2012, foram implementadas as funções de manipulação das
+imagens RF e cálculo da medida de similaridade utilizando a linguagem
+de programação C. Estas funções são fundamentais para o propósito do
+projeto que é identificar os deslocamentos ocorridos entre as séries
+de imagens obtidas pelo Ultrasonix RP.
+
+A medida de similiridade escolhida foi a correlação cruzada
+normalizada devido ao fato de poder ser computada utilizando operações
+aritméticas simples e possuir flexibilidade de aplicação relacionada
+às características da imagem. A primeira característica possibilitou a
+utilização da liguagem de programação Assembly para processadores
+Intel de 64 bits com instruções avançadas específicas para operações
+multimídia (SSE - Streaming SIMD, single instruction multiple data,
+extensions), onde operações aritméticas que seriam realizadas em
+vários ciclos, são realizadas em um único ciclo, havendo assim um
+ganho de performance importante para a medida de deslocamentos em
+tempo real.
+
+Segundo avaliação de performance dos autores houve redução de tempo de
+até 40% para o cálculo da correlação cruzada, quando a implementação
+em Assembly é comparada com a mesma implementação em C.
+
+Para a colaboração entre os diversos participantes do projeto de
+pesquisa foi criado um projeto de software no Google Developer que
+provê recursos de hospedagem para desenvolvimento de programas de
+fornecendo sistema de controle de versão, sistema de abertura de
+pedidos de melhoria ou correção de bugs e documentação através da
+utilização de wikis.
+
+O link do projeto é [[http://code.google.com/p/nixus/]] e todo a
+evolução da implementação pode ser acompanhada tanto pela web como
+pela utilização do sistema de controle de versão git.
+
+Para completar o apoio ao projeto de pesquisa falta ainda implementar
+as seguintes funcionalidades:
+
+- Medida de deslocamento das regiões deformadas;
+- Contrução dos gráficos de deslocamentos.
+
+Os próximos passos envolvem a implantação dos programas no equipamento
+e realização de testes para verificar a viabilidade da solução
+adotada. Durante o processo de desenvolvimento, notamos ainda que
+melhorias podem ser efetuadas na performance do programa com a
+utilização de sistema de entrada/saída não bloqueante e threads para o
+cálculo da correlação entre os diferentes frames sendo realizado por
+múltiplas linhas de execução.
+
+Porém, o principal foco ainda deve ser dado à acuracidade das medidas
+de similiridade e avaliação da técnica de corregistro a ser utilizada.

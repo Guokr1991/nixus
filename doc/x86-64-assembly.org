@@ -1,0 +1,77 @@
+#+TITLE: x86-64-Bit Assembly. 
+#+OPTIONS: toc:nil LaTeX:t
+
+This section contains technical information and tips for optimizing
+x86-64 assembly code. It is a difficult task to mantain the document
+updated because changes in the processor are very fast, but we intend
+to put some good tips and techniques that are more stable.
+
+128-Bit SIMD Integer Instructions Set 2 (SSE2) was used to
+implement xcorr\_nat function.  The XMMMx-registers introduced in the
+SSE2 instruction set extensions store 128-bit that can be aligned as
+
+- 1x 128-bit raw integer
+- 2x 64-bit integer	 
+- 4x 32-bit integer	 
+- 8x 16-bit integer	 
+- 16x 8-bit integer	 
+- 2x 64-bit floating point values 
+- 4x 32-bit floating point values 
+
+The instructions used in the assembly code to calculated normalized
+cross correlation are described as follows:
+	
+ =MOVDQA= moves aligned double quadword, as an example, the
+instruction
+
+=MOVEQDA xmm2/m128, xmm1;=
+
+fetchs the content of =xmm1= and moves it to =xmm2=. 
+The =MOVDQA= operation corresponds to:
+
+=xmm2= \leftarrow =xmm1;=
+
+`PADDQ` instruction with 128-Bit operands
+
+=PADDQ xmm1, xmm2/m128;=
+
+adds packed quadword integers xmm2/m128 to xmm1. The =PADDQ=
+corresponds to:
+
+=DEST[63-0]= \leftarrow =DEST[31-0] + SRC[31-0];=
+=DEST[127-64]= \leftarrow =DEST[95-64] + SRC[95-64];=
+
+=PMULUDQ= instruction with 128-Bit operands
+
+=PMULUDQ xmm1, xmm2/m128;=
+
+ multiplies packed unsigned doubleword integers in =xmm1=
+ packed by the unsigned doubleword integers in =xmm2$/$m128=, and
+ store quadword results =xmm1=. The =PMULUDQ= operation
+ corresponds to:
+
+=DEST[63-0]= \leftarrow =DEST[31-0] * SRC[31-0];=
+=DEST[127-64]= \leftarrow =DEST[95-64] * SRC[95-64];=
+
+The instruction
+
+=HADDPD xmm0, xmm0;=
+
+is equivalent to
+
+=xmm0[63-0]= \leftarrow =xmm0[63-0] + xmmo[127-64];=
+
+and it stores the addition of double-precision low and high quadwords in the low 
+quadword in the destination operand.
+
+ The instruction
+
+=CVTDQ2PD xmm1, xmm2/m128;=
+
+converts two packed signed doubleword integers from =xmm2/m128= to 
+two packed double-precision floating point values in =xmm1=. It is
+equivalent to:
+
+=xmm1[63-0]= \leftarrow =xmm2[31-0];=
+=xmm1[127-64]= \leftarrow =xmm2[63-32];=
+.

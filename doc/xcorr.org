@@ -1,0 +1,70 @@
+#+AUTHOR: Adriano J. Holanda
+#+TITLE: Normalized Cross-Correlation (NCC)
+#+OPTIONS: toc:nil LaTeX:t
+#+name: setup
+#+begin_src emacs-lisp :results silent :exports none
+(unless (find "per-file-class" org-export-latex-classes :key 'car
+          :test 'equal)
+  (add-to-list 'org-export-latex-classes
+           '("per-file-class"
+              "\\documentclass{article}
+              [NO-DEFAULT-PACKAGES]
+              [EXTRA]"
+              ("\\section{%s}" . "\\section*{%s}")
+              ("\\subsection{%s}" . "\\subsection*{%s}")
+              ("\\subsubsection{%s}" . "\\subsubsection*{%s}")
+              ("\\paragraph{%s}" . "\\paragraph*{%s}")
+              ("\\subparagraph{%s}" . "\\subparagraph*{%s}")))
+ #+end_src
+#+LaTeX_CLASS: per-file-class
+#+LaTeX_CLASS_OPTIONS: [a4paper,twoside]
+
+* Normalized Cross-Correlation (NCC)
+
+NCC is frequently used as a method to determine correlation between
+two data series. This method is used to calculate the pairwise
+correlation between RF sub-frames. The reference data is compared with
+template, where the template in our case is the RF images acquired
+normally after some deformation is induced in the sample exposed to
+ultrasound pulse.  The Equation~1 presents the original method to
+calculate NCC ($r_{xy}$).
+
+\begin{equation}
+\def\dt{{\Delta~t}}
+\def\average#1{\overline{#1}}
+r_{xy}= {
+{\sum\limits_{i=1}^{n}
+(x_i-\average{x})(y_i- \average{y})
+}\over
+{\sqrt{\sum\limits_{i=1}^{n}(x_i-\average{x})^2
+\times\sum\limits_{i=1}^{n}(y_i-\average{y})^2}}
+}
+\label{eq:avgtwo}
+\end{equation}
+
+where
+$r_{xy}$ - normalized cross-correlation;
+$i$ - index;
+$x$ - |REFERENCE| signal in pixel intensity;
+$y$ - |TARGET| signal to be compared with the reference in pixel intensity.
+
+The problem with Equation~\ref{eq:avgtwo} is that it requires two p
+asses to calculate the correlation. Equation (2) is less intuitive but
+it requires only one pass to acomplish the task. The equation was
+obtained from the book ``Introduction to 64 Bit Intel Assembly
+Language Programming for Linux: Second Edition'' at chapter 19 (Kindle
+edition), by Ray Seyfarth.
+
+
+\begin{equation}
+\def\den#1{{\sqrt{n\sum #1_i^2-(\sum #1_i)^2}}}
+r_{xy} = {
+       {n\sum x_iy_i-\sum x_i\sum y_i}
+       \over
+       {\den{x}\den{y}}
+}
+\label{eq:avgone}
+\end{equation}
+
+where the variables have the same meaning of Equation~\ref{eq:avgtwo}.
+
