@@ -1,3 +1,3 @@
 .PHONY:
 clean:
-	$(RM) *~ *.aux *.dvi *.idx *.fo *.html *.log *.out *.pdf *.xml report-2012.tex
+	$(RM) *~ *.aux *.dvi *.idx *.fo *.html *.log *.nav *.out *.pdf *.snm *.xml report-2012.tex
