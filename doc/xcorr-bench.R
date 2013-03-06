@@ -1,6 +1,6 @@
 require(tikzDevice)
 tikz('xcorr-bench.tex', standAlone = FALSE, width=4.25, height=3.75)
-data<-read.table("xcorr.dat", sep="\t")
+data<-read.table("xcorr-bench.dat", sep="\t")
 plot(x=data$V1,y=data$V2,type='o',pch=19,col='blue', ylab='number of processor cycles',xlab='number of points')
 points(x=data$V1,y=data$V3, type="o", pch=24, col='red')
 legend(x=10000,y=7e8,legend=c("x86-64 SSE assembly ", " C "), col=c("blue", "red"), lwd=1, cex=.6)
