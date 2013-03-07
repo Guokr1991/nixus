@@ -79,11 +79,11 @@ xcorr_nat:
 	mulsd		xmm2, xmm3	; den <- den0 * den1
 	movsd		xmm9, xmm2	; tmp <- den
 	comisd		xmm4,xmm9	; den == num
-	jz		DEN_EQUALS_NUM ; den = num
+	jz		DEN_EQ_NUM ; den = num
 	divsd		xmm4, xmm2	; xcorr <- num/den
 	movsd		xmm0, xmm4	; return xcorr
 	ret
-DEN_EQUALS_NUM:
+DEN_EQ_NUM:
 	movsd		xmm0, [one]   	; xcorr = 1
 	cvtdq2pd	xmm0, xmm0   	; int => float	
 	ret
