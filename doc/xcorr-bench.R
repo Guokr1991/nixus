@@ -1,6 +1,6 @@
 #require(tikzDevice)
 #tikz('xcorr-bench.tex', standAlone = FALSE, width=4.25, height=3.75)
-svg(file='xcorr-bench.svg', bg='transparent')
+png(file='xcorr-bench.png', bg='transparent')
 data<-read.table("xcorr-bench.dat", sep="\t")
 plot(x=data$V1,y=data$V2,type='o',pch=19,col='black', ylab='número de ciclos no processador',xlab='número de pontos por série')
 points(x=data$V1,y=data$V3, type="o", pch=17, col='black', lty=2)
