@@ -1,0 +1,404 @@
+\documentclass[a4paper]{article}
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: t
+%%% End: 
+\usepackage[utf8]{inputenc}
+\usepackage[brazil]{babel}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\lstset{basicstyle=\scriptsize,frame=single,
+  numbers=left,numberstyle=\tiny}
+
+\def\TR{\textsuperscript{\textregistered}}
+\def\TC{\textsuperscript{\textcopyright}}
+\def\TM{\textsuperscript{\texttrademark}}
+
+\begin{document}
+
+\title{UTILIZAÇÃO DAS EXTENSÕES MULTIMÍDIA DOS PROCESSADORES INTEL\TR{}
+  PARA REDUÇÃO DO NÚMERO DE CICLOS PARA A EXECUÇÃO DE PROGRAMAS
+  HOLANDA}
+
+\author{HOLANDA, Adriano de Jesus\footnote{Departamento de Computação
+    e Matemática (DCM) da Faculdade de Filosofia, Ciências e Letras de
+    Ribeirão Preto (FFCLRP) -- USP},\\ RUIZ, Evandro Eduardo Seron$^*$;\\
+  CARNEIRO, Antônio Adilton~\footnote{Departamento de Física, FFCLRP
+    -- USP}}
+
+\date{11 de março de 2013}
+
+\maketitle
+
+\centerline{\scriptsize Submetido para publicação}.
+
+\begin{abstract}
+  A utilização das extensões multimídias com registradores que
+  realizam a mesma operação sobre vários dados ao mesmo tempo (SIMD)
+  dos atuais processadores podem reduzir o tempo de execução de
+  programas que lidam com operações aritméticas sobre grande
+  quantidade de dados. O objetivo deste trabalho foi quantificar o
+  número de ciclos utilizados para o cálculo da correlação cruzada em
+  duas dimensões para várias séries geradas e de diferentes tamanhos,
+  usando a linguagem de programação C e as extensões para cálculo
+  multimídia em Assembly para a codificação das instruções, compilação
+  e execução. A comparação entre os resultados, usando o mesmo
+  algoritmo e conjunto de dados, demonstrou que o programa em Assembly
+  usando a extensão SIMD utilizou $38,37\%$ menos ciclos de
+  processador que a mesma implementação escrita em C.
+
+\end{abstract}
+\noindent {\bf Palavras-chave:}
+ Assembly. Processador. {\sc SIMD}. Correlação cruzada.
+
+\section*{INTRODUÇÃO}
+
+Mesmo com a disseminação dos processadores com arquitetura de 64 bits
+substituindo os de 32 bits, as demandas por maior capacidade de
+armazenamento temporário nos registradores e melhor eficiência na
+operação sobre os dados armazenados vêm pressionando os fabricantes de
+processadores a adotarem soluções que se desviam da arquitetura
+normalmente empregada para construção dos processadores.  A principal
+modificação é a inclusão de registradores de 128 e 256 bits para a
+realização de vários cálculos de uma única vez, aumentando a
+performance dos programas, que utilizam estes recursos, causado pela
+redução no número de ciclos durante o processamento.  Estes recursos
+que começaram a ser manufaturados pela Intel® permitem que múltiplos
+dados sejam manipulados por uma única instrução (SIMD – {\em Single
+Instruction Multiple Data}), e fazem parte da tecnologia de extensão
+multimídia (MMX – {\em Multimedia Extension}) introduzida a partir do
+Pentium II, para realizar operações complexas sobre números inteiros.
+Uma extensão da tecnologia SIMD denominada SSE (Streaming SIMD
+Extension) possui registradores de 128 bits para o armazenamento de
+múltiplos dados. A Figura 1 mostra como dados do tipo inteiro de
+diferentes tamanhos podem ser armazenados em um registrador
+SSE~\cite{blum}.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[scale=.4]{sse.png}
+  \caption{ Possibilidade de divisões dos registradores XMM de 128-bit
+    para armazenamento de números inteiros.  (Fonte:~\cite{ray})}
+\label{fig:xmm128}
+\end{figure}
+
+Utilizando os registradores de 128-bit para armazenamento de 2 números
+inteiros de 64 bits, que poderiam representar 2 pixels de um mapa de
+bits de imagens RGB (Red x Green x Blue), a soma de 2 números dois a
+dois pode ser realizada em 1 ciclo do processador, enquanto utilizando
+o método tradicional seriam necessárias dois ciclos do processador
+para a execução da operação. A Figura 2 ilustra como a operação em
+dados múltiplos é utilizada para redução do número total de ciclos
+para o processamento.
+
+\begin{figure}[h]
+  \centering
+    \includegraphics[scale=.4]{sseop.png}
+  \caption{Operação realizada em múltiplos dados sobre o mesmo registrador.}
+  \label{fig:simd}
+\end{figure}
+
+A Figura 4 ilustra a execução de uma mesma operação em vários dados,
+onde uma operação (OP) é realizada sobre os primeiros segmentos de
+cada registrador e o resultado armazenado no primeiro segmento do
+registrador destino, enquanto a mesma operação é realizada sobre os
+segundos segmentos com o armazenamento ocorrendo no segundo segmento
+do registrador destino. Este é o modo de operação das instruções
+Assembly {\tt paddq} e {\tt pmuldq}, adição e multiplicação de quadwords
+empacotados, utilizadas em nosso trabalho~\cite{intel}.  A utilização
+destes recursos para a execução de operações aritméticas podem reduzir
+o número de ciclos necessários para completar um tarefa, reduzindo o
+tempo de execução do programa.  
+
+\section*{OBJETIVO}
+O objetivo deste trabalho é quantificar a diferença no tempo de
+execução de instruções que utilizam a compilação na linguagem C sem o
+uso das extensões SSE e com uso da extensão SSE com registradores de
+128 bits e divididos em inteiros de 32 bits.
+
+\section*{MATERIAL E MÉTODOS}
+
+\subsection*{Codificação}
+
+O algoritmo escolhido para os testes é utilizado para o cálculo de
+correlação cruzada entre duas séries de valores igual tamanho, sua
+fórmula original é mostrada na Equação~\ref{eq:XCORR}:
+
+ \begin{equation}
+     r_{xy}= \frac{ \sum (x_i-\overline{x})(y_i- \overline{y}) }{
+  \sqrt{\sum (x_i-\overline{x})^2 \sum (y_i-\overline{y})^2}},
+   \label{eq:XCORR}
+ \end{equation}
+
+
+\noindent onde a média dos valores é calculada por
+
+\begin{equation}
+\overline{x} = \frac{\sum{x_i}}{n}.
+  \label{eq:mean}
+\end{equation}
+
+Porém, a Equação 1 tem complexidade $O(n^2)$, onde n é o número de
+elementos na série, pois há a necessidade de realizar duas passagens
+pelos dados, uma para calcular a média das séries x e y, e outra para
+calcular o valor da correlação cruzada $r_{xy}$ entre as séries. A Equação
+1 pode ser decomposta de modo a necessitar somente de uma passagem
+pelos dados, possuindo complexidade $O(n)$ (Equação~\ref{eq:xcorr}):
+
+\begin{equation}
+r_{xy} = \frac{ n\sum x_iy_i-\sum x_i\sum y_i } { \sqrt{n\sum
+    x_i^2-(\sum x_i)^2} \sqrt{n\sum y_i^2-(\sum y_i)^2} }.
+  \label{eq:xcorr}
+\end{equation}
+
+A correlação cruzada é comumente utilizada em processamento de sinais
+e imagens para analisar as similaridades entre as séries de dados que
+podem ser valores de pixels ou intensidade do sinal em determinado
+tempo.  A implementação da Equação 3 utilizando a linguagem C é
+apresentada na Figura~\ref{fig:c-code} e foi sugerida por Seyfard (2012), e
+modificada pelos autores para operar sobre números inteiros:
+
+\begin{figure}[h]
+  \centering
+
+\begin{lstlisting}[language=C]
+  double xcorr(long x[], long y[], n)
+  {
+    register long i;
+    register long sum_x=0, sum_y=0, 
+    sum_xx=0, sum_yy=0, sum_xy=0;
+    for (i = 0; i < n ; i++) {
+      register long xval = *(x+i);
+      register long yval = *(y+i);
+      sum_x += xval;
+      sum_y += yval;
+      sum_xx += xval * xval;
+      sum_yy += yval * yval;
+      sum_xy += xval * yval;
+    }
+    return ((double)(n*sum_xy-sum_x*sum_y))/
+    (sqrt((n*sum_xx-sum_x*sum_x)* 
+    (n*sum_yy-sum_y*sum_y)));
+  }
+\end{lstlisting}
+  \caption{Código em linguagem C do cálculo da correlação cruzada entre duas séries de dado}
+  \label{fig:c-code}
+\end{figure}
+
+O código implementado em Assembly para processadores Intel® x86 de 64
+bits é mostrado na Figura~\ref{fig:asm-code}. O código também segue, em linhas gerais,
+o descrito por Seyfarth (2012), com algumas modificações. A primeira é
+utilizar somente números inteiros para as séries, pois normalmente os
+valores de pixels na imagem são do tipo inteiro. A segunda modificação
+é uma verificação no cálculo final da correlação para evitar divisões
+por zero, que ; poderiam causar erro fatal ao final da execução do
+programa.  1
+
+\begin{figure}[h]
+  \centering
+  \begin{lstlisting}[]
+    segment .data
+one dq  1
+    segment .text
+    global xcorr_nat
+xcorr_nat:
+    xor r8,r8
+    move rcx, rdx
+    subpd xmm0, xmm0 ; zera sum_x
+    movdqa xmm1, xmm0 ; zera sum_y
+    movdqa xmm2, xmm0 ; zera sum_xx
+    movdqa xmm3, xmm0 ; zera sum_yy
+    movdqa xmm4, xmm0 ; zera sum_xy
+    movdqa xmm8, xmm0 ; zera n
+    movdqa xmm9, xmm0 ; zera variavel temporaria
+.loop:                    ;; Main loop
+    movdqa xmm5, [rdi+r8] ; atribui valor do proximo x da serie
+    movdqa xmm6, [rsi+r8] ; atribui valor do proximo y da serie
+    paddq xmm0, xmm5      ; sum_x
+    paddq xmm1, xmm6      ; sum_y
+    movdqa xmm7, xmm5     ; atribui x a um registrador temporario
+    pmuldq xmm7, xmm6     ; x*y
+    pmuldq xmm5, xmm5     ; x*x
+    pmuldq xmm6, xmm6     ; y*y
+    paddq xmm2, xmm5      ; sum_xx
+    paddq xmm3, xmm6      ; sum_yy
+    paddq xmm4, xmm7      ; sum_xy
+    add r8, 16 
+    sub rcx, 2
+    jnz .loop
+    haddpd xmm0, xmm0     ; compacta sum_x
+    cvtdq2pd xmm0, xmm0   ; converte sum_x para ponto flutuante
+    haddpd xmm1, xmm1     ; compacta sum_y
+    cvtdq2pd xmm1, xmm1   ; converte sum_y para ponto flutuante
+    haddpd xmm2, xmm2     ; compacta sum_xx
+    cvtdq2pd xmm2, xmm2   ; converte sum_xx para ponto flutuante
+    haddpd xmm3, xmm3     ; compacta sum_yy
+    cvtdq2pd xmm3, xmm3   ; converte sum_yy para ponto flutuante
+    haddpd xmm4, xmm4     ; compacta sum_xy
+    cvtdq2pd xmm4, xmm4   ; converte sum_xy para ponto flutuante
+    cvtsi2sd xmm8, rdx    ; armazena o valor de n em xmm8
+    mulsd xmm4, xmm8      ; n*sum_xy
+    movsd xmm9, xmm0      ; tmp := sum_x
+    mulsd xmm9, xmm1      ; sum_x*sum_y
+    subsd xmm4, xmm9      ; numerador := n*sum_xy - sum_x*sum_y
+    mulsd xmm2, xmm8      ; n*sum_xx
+    mulsd xmm0, xmm0      ; sum_x*sum_x
+    subsd xmm2, xmm0      ; denominador0 := n*sum_xx - sum_x*sum_x
+    sqrtsd xmm2, xmm2     ; denominador0 := sqrt(denominador0)
+    mulsd xmm3, xmm8      ; n*sum_yy
+    mulsd xmm1, xmm1      ; sum_y*sum_y
+    subsd xmm3, xmm1      ; denominador1 := n*sum_yy - sum_y*sum_y
+    sqrtsd xmm3, xmm3     ; denominador1 := sqrt(denominador1)
+    mulsd xmm2, xmm3      ; denominador := denominador0 * denominador1
+    movsd xmm9, xmm2      ; tmp := denominador
+    comisd xmm4,xmm9      ; denominador  == numerador ?
+    jz DEN_EQ_NUM         ; (denominador  == numerador) := verdadeiro
+    divsd xmm4, xmm2      ; correlacao := numerador/denominador
+    movsd xmm0, xmm4      ; retorna correlacao
+    jz EXIT
+    DEN_EQ_NUM: movsd xmm0, [one] ; correlacao := 1
+    cvtdq2pd xmm0, xmm0  ; converte inteiro para ponto flutuante
+EXIT:
+
+\end{lstlisting}
+  
+\caption{Código em Assembly Intel® x86-64 para o cálculo da correlação
+  cruzada entre duas séries de números inteiros.}
+  \label{fig:asm-code}
+\end{figure}
+
+Na Figura~\ref{fig:asm-code} o código em Assembly Intel® x86-64 é
+mostrado com o número da linha de cada instrução na primeira coluna,
+os rótulos na segunda coluna, as operações na terceira, os operandos
+na quarta e os comentários na quinta após o símbolo “;”.
+
+Das linhas 15 à 29 estão as instruções para a realização do somatório
+para o cálculo da correlação cruzada conforme mostrado na
+Equação~\ref{eq:xcorr}. As instruções paddq e pmuldq executam a soma e
+multiplicação, respectivamente, de quatro valores inteiros conforme
+mostrado na Figura~\ref{fig:simd}. Das linhas 30 à 62, há instruções para a
+preparação dos resultados das somas, convertendo-os para ponto
+flutuante, para efetuar a divisão, e realizando cálculo final da
+correlação. A linha 56 garante que se o numerador e denominador da
+equação forem iguais a zero, ou seja a correlação seja igual a 1, a
+divisão pelo denominador igual a zero, não seja realizada retornando o
+valor 1 sem efetuar a divisão final.
+
+Os códigos mostrados neste trabalho fazem parte um projeto de análise
+elastográfica de imagens de ultrassom desenvolvido pelo Departamento
+de Física da Faculdade de Filosofia, Ciências e Letras de Ribeirão
+Preto/USP, e podem ser obtidos pelo site
+\url{https://github.com/ajholanda/nixus}.  
+
+\subsection*{Compilação e execução}
+
+O programa em C foi compilado usando o gcc (GNU Compiler Collection,
+\url{http://gcc.gnu.org/}) sem nenhuma flag adicional passada para o
+compilador. O código em Assembly, conforme mostrado na Figura 2, foi
+compilado usando o assembler Yasm (\url{http://yasm.tortall.net/}) com as
+seguintes flags: ``{\tt -Worphan-labels -f elf64 -g dwarf2 -l corr.lst}''. Os
+programas foram compilado e executados em um computador com
+processador Intel® Core\TM{} 2 Duo com 2,93 GHz e 3MB de memória cache, e
+memória DRAM com 3GB de capacidade.  O número de valores atribuídos
+para as séries foram gerados a partir dos índices do arranjo contendo
+os elementos com as seguintes atribuições:
+
+\begin{lstlisting}[language=C,frame=noframe,numbers=right]
+  x[i] = 1+i;
+  y[i] = 1+2*i;
+\end{lstlisting}
+
+\noindent onde {\tt i} é o índice do arranjo onde está sendo efetuado
+o loop.
+
+Os cálculos de correlação entre as séries foram efetuados para os
+seguintes números de elementos:
+
+\begin{center}
+\begin{tt}
+	<1.000,1.000,9.000>, \\
+	<10.000, 10.000, 90.000>, \\
+	<1.000.000, 1.000.000, 9.000.000>, \\
+	<10.000.000, 10.000.000, 90.000.000>,\\
+\end{tt}
+\end{center}
+
+\noindent onde o primeiro valor da tupla indica valor inicial para o
+loop, o segundo o passo e o terceiro o limite do loop.
+
+\section*{RESULTADOS}
+
+A Figura~\ref{fig:c-versus-asm} contêm a relação entre os número de
+pontos das séries $x$ e $y$ e o número de ciclos utilizados para calcular
+a correlação entre as séries utilizando o programa em C e Assembly.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[scale=.525]{xcorr-bench.png}
+  \caption{Número de ciclos utilizados pelo processador em função de
+    número de elementos das séries geradas para o cálculo da
+    correlação cruzada.}
+  \label{fig:c-versus-asm}
+\end{figure}
+
+Em média houve uma redução de $38,37\%$ do número de ciclos utilizando
+o código em Assembly quando comparado com o código em C. Para um
+número menor de valores na série, a performance do código em Assembly
+é maior devido ao fato da menor utilização da memória cache. Para o
+número de elementos na série entre $10.000$ e $100.000$, a redução do
+número de ciclos usando o código em Assembly varia de $64,5\%$ a
+$94,4\%$. A partir de $100.000$ pontos, a redução dos valores de uso de ciclos
+do processador cai para menos de $40\%$.
+
+\section*{DISCUSSÃO}
+
+Quando se tem por objetivo melhorar a performance dos programas que
+processam grande quantidade de dados, caso comum em processamento de
+imagens e sinais, o conhecimento do hardware utilizado para execução
+das tarefas pode contribuir para identificar pontos de otimização.
+
+As linguagens de alto nível como o C fornecem um nível de abstração e
+portabilidade que contribuem para facilitar a codificação com maior
+facilidade de gerenciamento do código fonte. Porém, alguns recursos
+recentes do processadores modernos ainda não estão disponíveis nas
+linguagens de programação mais comuns. Por este motivo, a integração
+de código de alto nível com Assembly, usando esta última em pontos que
+exijam maior performance pode ser uma solução para reduzir o tempo de
+processamento total.
+
+O processador Intel\TR{} Core\TM{} i7 possui registradores de 256 bits
+para a realização das operações em múltiplos dados, através de sua
+extensão AVX ({\em Advanced Vector Extensions}), possuindo operações
+específicas para dados multimídia.  Outros pontos de otimização mais
+ligados ao sistema operacional, como por exemplo melhor controle do
+sistema de entrada/saída (E/S), também cooperam para a redução do
+tempo total de processamento. Por exemplo, a manipulação do buffer,
+uso de operações de E/S não bloqueante e mapeamento do arquivo
+contendo os dados para memória principal podem reduzir o tempo de
+acesso aos dados, aumentando o fluxo de instruções no processador.
+
+\section*{CONCLUSÃO}
+
+O uso da extensão SSE do processador Intel\TR{} para o cálculo da
+correlação cruzada entre duas séries de valores inteiros, de diferente
+tamanhos e com a geração do número inteiro baseada no índice do
+elemento, reduziu o número de ciclos utilizados no processador pelos
+programas em média $38,37\%$, número este que pode ser maior para
+computadores com alta capacidade de memória cache.
+
+\section*{REFERÊNCIAS}
+
+\begin{thebibliography}{9}
+
+\bibitem{blum} BLUM, Richard. Professional Assembly Language.  Editora Wrox, 2005.
+
+\bibitem{intel} INTEL\TR{} Corporation. Intel\TR{} 64 and IA-32 Architectures Software
+Developer’s Manual. Volume 2B, 2012.
+
+\bibitem{ray} SEYFARTH, Ray. Introduction to 64 Bit Intel Assembly: Language
+Programming for Linux, 2012 (Edição Kindle).
+
+\end{thebibliography}
+
+\end{document}
