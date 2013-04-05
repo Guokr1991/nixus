@@ -12,4 +12,6 @@ xcorr-bench.png: xcorr-bench.R
 
 .PHONY:
 clean:
-	$(RM) *~ *.aux *.dvi *.idx *.fo *.html *.log *.nav *.out *.pdf *.snm *.xml report-2012.tex
+	$(RM) *~ *.aux *.dvi *.idx *.fo *.html *.log *.nav \
+		*.out *.pdf *.snm *.xml report-2012.tex \
+		artigo-simd.pdf *.png
