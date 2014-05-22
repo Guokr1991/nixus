@@ -1,6 +1,9 @@
 artigo-simd.pdf: artigo-simd.tex sse.png sseop.png
 	pdflatex $<
 
+lec.pdf: lec.tex xcorr-bench.png
+	pdflatex $<
+
 sse.png:
 	inkscape -e $@ img/SSE.svg
 
