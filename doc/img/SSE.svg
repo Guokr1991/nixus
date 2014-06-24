@@ -13,8 +13,11 @@
    height="496.06299"
    id="svg2"
    version="1.1"
-   inkscape:version="0.48.3.1 r9886"
-   sodipodi:docname="SSE.svg">
+   inkscape:version="0.48.4 r9939"
+   sodipodi:docname="SSE.svg"
+   inkscape:export-filename="C:\Users\AdrianoJ\Documents\GitHub\nixus\doc\img\SSE.png"
+   inkscape:export-xdpi="90"
+   inkscape:export-ydpi="90">
   <defs
      id="defs4" />
   <sodipodi:namedview
@@ -30,10 +33,10 @@
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="true"
-     inkscape:window-width="1908"
-     inkscape:window-height="1003"
-     inkscape:window-x="0"
-     inkscape:window-y="24"
+     inkscape:window-width="1024"
+     inkscape:window-height="705"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
      inkscape:window-maximized="1"
      units="cm">
     <inkscape:grid
@@ -52,7 +55,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title />
+        <dc:title></dc:title>
       </cc:Work>
     </rdf:RDF>
   </metadata>
